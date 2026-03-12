@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: planning
-stopped_at: Completed 01-protocol-discovery/01-01-PLAN.md
-last_updated: "2026-03-12T16:38:46.305Z"
-last_activity: 2026-03-12 — Roadmap created
+status: in_progress
+stopped_at: Completed 01-protocol-discovery/01-02-PLAN.md — Phase 1 complete
+last_updated: "2026-03-13T00:00:00.000Z"
+last_activity: 2026-03-13 — Phase 1 complete, battery byte offset confirmed
 progress:
   total_phases: 3
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 2
-  completed_plans: 1
-  percent: 50
+  completed_plans: 2
+  percent: 33
 ---
 
 # STATE
@@ -23,32 +23,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-12)
 
 **Core value:** Never be caught with a dead mouse
-**Current focus:** Phase 1 — Protocol Discovery
+**Current focus:** Phase 2 — C# app implementation
 
 ## Current Position
 
-Phase: 1 of 3 (Protocol Discovery)
+Phase: 2 of 3 (C# App)
 Plan: 0 of ? in current phase
 Status: Ready to plan
-Last activity: 2026-03-12 — Roadmap created
+Last activity: 2026-03-13 — Phase 1 complete
 
-Progress: [█████░░░░░] 50%
-
-## Performance Metrics
-
-**Velocity:**
-- Total plans completed: 0
-- Average duration: —
-- Total execution time: —
-
-**By Phase:**
-
-| Phase | Plans | Total | Avg/Plan |
-|-------|-------|-------|----------|
-| - | - | - | - |
-
-*Updated after each plan completion*
-| Phase 01-protocol-discovery P01 | 9 | 2 tasks | 3 files |
+Progress: [███░░░░░░░] 33%
 
 ## Accumulated Context
 
@@ -57,11 +41,13 @@ Progress: [█████░░░░░] 50%
 - Single 20% threshold (simple, sufficient for v1)
 - Auto-start with Windows (user requirement)
 - Stack: C# .NET 8 + WinForms + HidSharp; TFM net8.0-windows10.0.19041.0
-- Keychron VID 0x3434, M3 dongle PID 0xD034; vendor-specific TLC (UP 0xFF__) is user-mode accessible
 - Deploy as single self-contained EXE (PublishSingleFile + SelfContained + win-x64)
-- [Phase 01-protocol-discovery]: Battery TLC uses usage_page=0x008C (140), not 0xFF00 as research assumed — confirmed from keychron-m3-linux main.py
-- [Phase 01-protocol-discovery]: Battery value is pattern-matched (scan for 0x00/0x01,pct,0x02,0x02 sequence) not at a fixed byte offset
-- [Phase 01-protocol-discovery]: Use hidapi PyPI package (cython-hidapi) not hid (pyhidapi) — hid lacks bundled hidapi.dll on Windows
+- **[CONFIRMED empirically 2026-03-13]** Dongle PID is 0xD030 ("Keychron Link"), NOT 0xD034 as research assumed
+- **[CONFIRMED empirically 2026-03-13]** Battery byte is at fixed offset 5 (NOT pattern-based)
+- **[CONFIRMED empirically 2026-03-13]** Battery TLC: VID=0x3434, PID=0xD030, usage_page=0x008C, Interface 1
+- **[CONFIRMED empirically 2026-03-13]** Battery reports arrive infrequently wirelessly (>20s); immediate when USB cable connects
+- **[CONFIRMED empirically 2026-03-13]** C# reader should use persistent blocking thread (no timeout), not a poll loop
+- Use hidapi PyPI package (cython-hidapi) not hid (pyhidapi) — hid lacks bundled hidapi.dll on Windows (Phase 1 tooling only)
 
 ### Pending Todos
 
@@ -69,10 +55,10 @@ None.
 
 ### Blockers/Concerns
 
-- Phase 1: Exact byte offset in HID report is unknown — requires empirical discovery against the physical device. This is the project's primary risk.
+None. Phase 1 primary risk (unknown byte offset) is resolved.
 
 ## Session Continuity
 
-Last session: 2026-03-12T16:38:46.303Z
-Stopped at: Completed 01-protocol-discovery/01-01-PLAN.md
+Last session: 2026-03-13
+Stopped at: Phase 1 complete. Next: plan Phase 2.
 Resume file: None
