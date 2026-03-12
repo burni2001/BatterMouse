@@ -1,0 +1,5 @@
+# HID device access — cython-hidapi (Windows DLL bundled in win_amd64 wheel)
+# NOTE: The PyPI package is named 'hidapi', NOT 'hid'.
+# The 'hid' package (pyhidapi, ctypes bindings) conflicts with 'hidapi' and
+# lacks the bundled hidapi.dll on Windows — do NOT install it alongside hidapi.
+hidapi>=0.14.0
