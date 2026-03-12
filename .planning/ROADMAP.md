@@ -40,7 +40,13 @@ Plans:
   2. With the mouse connected, the app reads battery level from the HID device without error
   3. When battery level is at or below 20%, a Windows toast notification appears; it does not re-fire every poll cycle
   4. After rebooting Windows, the app is running in the tray without any manual launch
-**Plans**: TBD
+**Plans**: 4 plans
+
+Plans:
+- [ ] 02-01-PLAN.md — C# solution scaffold: main project + test project with failing stubs
+- [ ] 02-02-PLAN.md — HidReader + BatteryMonitor + ToastHelper with unit tests (TDD)
+- [ ] 02-03-PLAN.md — AppContext + StartupManager with unit tests (TDD)
+- [ ] 02-04-PLAN.md — Integration verification: full test suite + manual smoke checkpoint
 
 ### Phase 3: Ship
 **Goal**: BatterMouse.exe is a single self-contained file that installs by copy and runs reliably day-to-day
@@ -58,6 +64,6 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Protocol Discovery | 1/2 | In Progress|  |
-| 2. Core App | 0/? | Not started | - |
+| 1. Protocol Discovery | 2/2 | Complete | 2026-03-13 |
+| 2. Core App | 0/4 | Ready | - |
 | 3. Ship | 0/? | Not started | - |
