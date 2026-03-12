@@ -8,7 +8,7 @@ Usage:
 
 Device: Keychron M3 2.4GHz Dongle
   VID: 0x3434 (13364)
-  PID dongle (wireless): 0xD034 (53296)
+  PID dongle (wireless): 0xD030 (53296) -- "Keychron Link" (empirically confirmed)
   PID device (wired/charging): 0xD037 (53299)
 
 Key finding from keychron-m3-linux reference implementation:
@@ -27,7 +27,7 @@ import sys
 import argparse
 
 VID = 0x3434
-PID_DONGLE = 0xD034   # 2.4GHz wireless dongle
+PID_DONGLE = 0xD030   # 2.4GHz wireless dongle ("Keychron Link")
 PID_DEVICE = 0xD037   # wired / charging connection
 
 # Usage page confirmed from keychron-m3-linux main.py reference implementation
@@ -84,9 +84,9 @@ def scan_feature_reports(path: bytes) -> None:
     dev.open_path(path)
     dev.set_nonblocking(0)
 
-    print("Scanning feature report IDs 0x00 - 0x1F ...")
+    print("Scanning feature report IDs 0x00 - 0xFF ...")
     found_any = False
-    for report_id in range(0x00, 0x20):
+    for report_id in range(0x00, 0x100):
         try:
             resp = dev.get_feature_report(report_id, 33)  # 33 = 1 report ID byte + 32 data bytes
             if resp and any(b != 0 for b in resp[1:]):    # skip all-zero responses
@@ -100,16 +100,20 @@ def scan_feature_reports(path: bytes) -> None:
     dev.close()
 
 
-def read_input_reports(path: bytes, duration_s: int = 60) -> None:
+def read_input_reports(path: bytes, duration_s: int = 60, blocking: bool = False) -> None:
     """
     Read input reports for duration_s seconds, printing each as hex and decimal.
 
     Move the mouse to trigger reports -- the M3 is silent when idle.
     Scans each report with parse_battery_data() and highlights the battery byte if found.
+    blocking=True: use blocking read with 5s timeout (for battery TLC which only reports on change).
     """
     dev = hid.device()
     dev.open_path(path)
-    dev.set_nonblocking(1)  # empty read = mouse idle, NOT an error
+    if blocking:
+        dev.set_nonblocking(0)
+    else:
+        dev.set_nonblocking(1)  # empty read = mouse idle, NOT an error
 
     print(f"Reading input reports for {duration_s}s. Move mouse to trigger reports.")
     print("Byte index: " + " ".join(f"{i:02d}" for i in range(32)))
@@ -136,6 +140,44 @@ def read_input_reports(path: bytes, duration_s: int = 60) -> None:
         dev.close()
 
     print(f"\nCapture complete. {seen_count} reports received.")
+
+
+BATTERY_BYTE_OFFSET = 5  # confirmed empirically 2026-03-13; fixed offset for PID=0xD030
+
+
+def read_battery_once() -> None:
+    """
+    --read-battery mode: open the Battery TLC and print current battery percentage.
+
+    Uses blocking read with 10s timeout. Move mouse or wait; battery reports arrive
+    periodically (~every few seconds) from the battery TLC.
+    """
+    for pid, label in [(PID_DONGLE, "dongle (wireless)"), (PID_DEVICE, "device (wired/charging)")]:
+        devices = hid.enumerate(VID, pid)
+        battery_tlcs = [d for d in devices if d['usage_page'] == BATTERY_USAGE_PAGE]
+        if not battery_tlcs:
+            continue
+
+        tlc = battery_tlcs[0]
+        dev = hid.device()
+        dev.open_path(tlc['path'])
+        dev.set_nonblocking(0)
+
+        print(f"Reading battery from PID={pid:#06x} ({label}), Battery TLC Interface={tlc['interface_number']}...")
+        print("(waiting up to 90s — connect USB cable to mouse for immediate result)")
+        data = dev.read(32, timeout_ms=90000)
+        dev.close()
+
+        if data and len(data) > BATTERY_BYTE_OFFSET:
+            pct = data[BATTERY_BYTE_OFFSET]
+            print(f"Battery: {pct}%")
+            sys.exit(0)
+        else:
+            print("ERROR: No report received within 90 seconds.")
+            sys.exit(1)
+
+    print(f"ERROR: No Keychron device found (VID={VID:#06x}).")
+    sys.exit(1)
 
 
 def parse_battery_data(data: list) -> int | None:
@@ -182,7 +224,7 @@ def _run_enumerate_check() -> None:
                 sys.exit(1)
 
     # Neither PID found
-    print(f"ERROR: Keychron dongle not found (VID={VID:#06x} PID={PID_DONGLE:#06x})")
+    print(f"ERROR: Keychron dongle not found (VID={VID:#06x} PID={PID_DONGLE:#06x} / PID={PID_DEVICE:#06x})")
     print("Ensure the 2.4GHz USB dongle is plugged in and the mouse is switched on.")
     sys.exit(1)
 
@@ -202,11 +244,20 @@ if __name__ == "__main__":
         action="store_true",
         help="Quick check: is the device present? Exits 0=found, 1=not found.",
     )
+    parser.add_argument(
+        "--read-battery",
+        action="store_true",
+        help="Read and print current battery percentage. Exits 0=success, 1=error.",
+    )
     args = parser.parse_args()
 
     if args.enumerate:
         _run_enumerate_check()
         # _run_enumerate_check() always calls sys.exit(), so we never reach here
+
+    if args.read_battery:
+        read_battery_once()
+        # read_battery_once() always calls sys.exit(), so we never reach here
 
     # --- Full discovery mode ---
     print("=== BatterMouse Phase 1: Full Discovery ===\n")
@@ -231,6 +282,7 @@ if __name__ == "__main__":
 
     for tlc in vendor_tlcs:
         up_label = "BATTERY_TLC" if tlc['usage_page'] == BATTERY_USAGE_PAGE else "VENDOR"
+        is_battery = tlc['usage_page'] == BATTERY_USAGE_PAGE
         print(f"\n=== Trying TLC: [{up_label}] UsagePage={tlc['usage_page']:#06x} ===")
         print("--- Feature Report Scan ---")
         try:
@@ -238,8 +290,16 @@ if __name__ == "__main__":
         except OSError as e:
             print(f"  Could not open for feature scan: {e}")
 
-        print("\n--- Input Report Stream (60s) ---")
-        try:
-            read_input_reports(tlc['path'], duration_s=60)
-        except OSError as e:
-            print(f"  Could not open for input read: {e}")
+        if is_battery:
+            print("\n--- Input Report Stream (blocking, 30s wait for battery event) ---")
+            print("NOTE: Battery TLC only reports on change -- plug/unplug charger or wait.")
+            try:
+                read_input_reports(tlc['path'], duration_s=30, blocking=True)
+            except OSError as e:
+                print(f"  Could not open for input read: {e}")
+        else:
+            print("\n--- Input Report Stream (60s) ---")
+            try:
+                read_input_reports(tlc['path'], duration_s=60)
+            except OSError as e:
+                print(f"  Could not open for input read: {e}")

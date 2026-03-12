@@ -1,121 +1,149 @@
-# Protocol Discovery Findings — Keychron M3
+# Protocol Discovery Findings — Keychron M3 / Keychron Link
 
-**Date:** 2026-03-12
-**Device:** Keychron M3 2.4GHz Dongle
+**Date:** 2026-03-13 (empirically confirmed)
+**Device:** Keychron M3 2.4GHz Dongle ("Keychron Link")
 **VID:** 0x3434 (13364 decimal)
-**PID (dongle):** 0xD034 (53296 decimal)
-**PID (wired/charging):** 0xD037 (53299 decimal)
+**PID (dongle):** 0xD030 (53296 decimal) — "Keychron Link" universal receiver
+**PID (wired/charging):** 0xD037 (53299 decimal) — unconfirmed empirically, retained from reference
+
+> **Note:** The research assumed PID 0xD034 (from keychron-m3-linux reference). The actual dongle
+> on this system is PID 0xD030 ("Keychron Link"), a universal multi-device Keychron receiver.
+> The battery protocol is otherwise consistent with the reference.
 
 ---
 
 ## HID Interface (TLC)
 
-- **Usage Page:** 0x008C (140 decimal) — NOT 0xFF00 as initially assumed; this is a vendor-defined page below the 0xFF00 range
-- **Usage ID:** TBD — to be confirmed empirically in Plan 02
-- **Interface Number:** TBD — to be confirmed empirically in Plan 02
-- **Report Type:** [ ] Feature Report  [x] Input Report  [ ] Both
+- **Usage Page:** 0x008C (140 decimal) — Battery System page (confirmed empirically)
+- **Usage ID:** 0x0001 (confirmed from enumeration)
+- **Interface Number:** 1 (MI_01, Col01)
+- **Report Type:** [ ] Feature Report  [x] Input Report  [x] Both
+  - Input reports are the primary source (continuous, reliable)
+  - Feature report 0x51 also returns non-zero data (see below)
 
-> **Source:** keychron-m3-linux main.py (pre-confirmed)
-> The reference implementation uses `usage_page = 140` (0x008C) to find the correct TLC.
-> This contradicts the research assumption that vendor TLCs always use 0xFF__ pages.
-> On Windows, mouhid.sys claims Usage Page 0x0001 (Generic Desktop) — 0x008C is NOT
-> claimed by mouhid.sys and should be user-mode accessible.
+> **Confirmed:** usage_page=0x008C is NOT claimed by mouhid.sys on Windows.
+> The device was opened and read successfully with no PermissionError.
 
 ---
 
 ## Battery Report
 
-- **Report ID:** None declared (single-report device, or report ID is part of data pattern)
-- **Report Size:** 32 bytes (confirmed from keychron-m3-linux source)
-- **Battery Value Location:** Dynamic pattern match, NOT a fixed byte offset
-- **Battery Byte Offset:** PATTERN-BASED — see Parse Algorithm below
-- **Value Range:** 0–100 (percent) — confirmed from source: `wbprint(f"{percentage}%")`
-- **Value at full charge:** TBD — to be measured empirically
-- **Value at ~20% charge:** TBD — to be measured empirically
+- **Report ID:** 0x54 (byte 0 of every input report — confirmed from session data)
+- **Report Size:** 32 bytes
+- **Battery Byte Offset:** **5** (fixed, empirically confirmed)
+- **Value Range:** 0–100 (percent)
+- **Value at test time:** 96% (`0x60`) — confirmed with cable connected after charging
+  - Earlier reading of 70% (`0x46`) was accurate (mouse battery was at 70% before charging)
+  - Both readings from TLC [0] path `9&3b58df5`; TLC [1] path `9&248e17d0` never responds
+    (likely a ghost entry for a second paired device that is off/unpaired)
+- **Confirmation method:** Byte 5 stable across all consecutive input reports while bytes 3
+  and 4 vary. Value changes with charge state (70% → 96% after charging). No other byte
+  in the 0–100 range is stable.
 
-### Parse Algorithm (from keychron-m3-linux main.py)
+### Confirmed Report Structure
 
-```python
-def parse_battery_data(data):
-    for i in range(len(data) - 3):
-        if (data[i] == 0x00 or data[i] == 0x01) and data[i+2] == 0x02 and data[i+3] == 0x02:
-            return data[i+1]
-    return None
+```
+Offset  Value (example)  Notes
+------  ---------------  -----
+  0     0x54             Report ID (stable)
+  1     0xe2 = 226       Unknown — stable
+  2     0x01             Unknown — stable
+  3     0x01 / 0x02      Likely charging state (1=discharging, 2=charging)
+  4     0x00–0x02        Varies — likely event counter or button state
+  5     0x46 = 70        *** BATTERY PERCENTAGE *** (stable, 0–100 range)
+  6     0x04             Unknown — stable
+  7     0x02             Unknown — stable
+  8–31  0x00             Unused / padding
 ```
 
-**Pattern:** Scan the 32-byte report for a sequence where:
-- `data[i]` is 0x00 or 0x01 (likely a report type/status byte)
-- `data[i+2]` is 0x02
-- `data[i+3]` is 0x02
-- `data[i+1]` is the battery percentage (0–100)
+### Raw session data (from session-1.log)
 
-**Key insight:** The battery value is NOT at a hardcoded offset — it is found by pattern matching
-within the report. This approach handles variable report structures gracefully.
-
----
-
-## Critical Deviation from Research Assumptions
-
-The research (01-RESEARCH.md) assumed vendor TLCs use `usage_page >= 0xFF00`. This is **incorrect**
-for the Keychron M3. The actual usage page is **0x008C** (140).
-
-**Impact on discover.py:**
-- Filter must use `d['usage_page'] == 0x008C` (or equivalently `== 140`)
-- The `>= 0xFF00` filter in the RESEARCH.md skeleton will miss the correct TLC
-- The `--enumerate` flag must check for UP 0x008C, not UP >= 0xFF00
-
-**Impact on discover.py written for this plan:**
-- The script will be written with BOTH filters: primary filter `usage_page == 0x008C`,
-  fallback filter `usage_page >= 0xFF00` for any additional vendor TLCs
-- This ensures the script finds the battery TLC while remaining flexible
+```
+hex[0001]: 54 e2 01 01 01 46 04 02 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+hex[0002]: 54 e2 01 01 01 46 04 02 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+hex[0004]: 54 e2 01 01 02 46 04 02 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+hex[0006]: 54 e2 01 02 00 46 04 02 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+```
 
 ---
 
-## Confirmation
+## Feature Report 0x51
 
-- **Method used to confirm byte is live:** Not yet confirmed — requires physical device testing in Plan 02
-- **Readings:** TBD — to be recorded during Plan 02 execution
+Feature report ID 0x51 returns non-zero data on the Battery TLC:
+
+```
+52 62 09 00 02 00 4f 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+```
+
+Byte 6 = 0x4f = 79. This value differs from the input report battery (70%), so it is likely
+not a simple battery percentage. Could be raw voltage, charge capacity, or a different metric.
+**Phase 2 should use input reports (offset 5), not feature reports.**
+
+---
+
+## Critical Deviation from Reference Implementation
+
+**The keychron-m3-linux pattern scan does NOT match this dongle's report format.**
+
+Reference pattern: `[0x00|0x01, pct, 0x02, 0x02]`
+Actual report:     `54 e2 01 01 01 46 04 02 00...`
+
+The pattern would look for byte 3 or 4 as `0x00|0x01`, then check `data[i+2]==0x02` and
+`data[i+3]==0x02`. This doesn't match because byte 5 (the battery) is followed by 0x04, not 0x02.
+
+**Conclusion:** Use **fixed offset 5** for the "Keychron Link" dongle (PID=0xD030).
+The pattern-based approach was valid for the M3's dedicated dongle (PID=0xD034) but not here.
+
+---
+
+## How to Trigger Battery Input Reports
+
+The battery TLC (0x008C) does NOT respond to mouse movement. Reports are emitted:
+- When USB charging cable is connected/disconnected (reliably triggers immediate reports)
+- Periodically in wireless mode — but interval is long (>20s, possibly 1–2 minutes)
+- On significant battery state change
+
+**For the C# app:** use a persistent background thread with an indefinite blocking read (no
+timeout). The first report will arrive within a minute of startup. There is no need to poll.
+
+**For the diagnostic --read-battery script:** works reliably with USB cable connected.
+In wireless-only mode, may time out before the device sends its next periodic report.
 
 ---
 
 ## C# Translation (for Phase 2)
 
 ```csharp
-// In HidSharp stream read loop — DO NOT use fixed offset:
-// Scan for the pattern instead:
+// HID device selection: filter by usage_page == 0x008C (Battery System page)
+// VID = 0x3434, PID = 0xD030 (Keychron Link dongle)
+
+const int BatteryByteOffset = 5;  // confirmed empirically 2026-03-13
+
+// In HidSharp stream read loop:
 static int? ParseBattery(byte[] report)
 {
-    for (int i = 0; i < report.Length - 3; i++)
-    {
-        if ((report[i] == 0x00 || report[i] == 0x01)
-            && report[i + 2] == 0x02
-            && report[i + 3] == 0x02)
-        {
-            return report[i + 1];
-        }
-    }
+    if (report.Length > BatteryByteOffset)
+        return report[BatteryByteOffset];
     return null;
 }
 
 // Device enumeration: filter usage_page == 0x008C (140)
-// NOT usage_page >= 0xFF00
+// Interface: MI_01 (interface_number == 1)
+// Reading: blocking reads; battery reports arrive periodically (~every few seconds)
 ```
 
 ---
 
 ## Notes
 
-1. **Usage page 0x008C is a "Battery System" page** per USB HID Usage Tables spec
-   (Usage Page 0x85 = Battery System; 0x008C may be a different assignment — verify).
-   Either way, it is NOT claimed by mouhid.sys on Windows.
+1. **Two PIDs to monitor:** 0xD030 (wireless, confirmed) and 0xD037 (wired/charging, from reference).
+   Phase 2 should enumerate both so percentage is accurate while charging.
 
-2. **keychron-m3-linux vendor_id typo:** The source comment says `0x3414` but the actual
-   value is `13364` decimal = `0x3434`. The comment is wrong; the decimal is right.
+2. **"Keychron Link" is a universal receiver** — it appears as 16 TLCs covering mouse, keyboard,
+   and battery interfaces. The Battery TLC is consistently at Interface 1 (MI_01, Col01).
 
-3. **Two PIDs monitored:** The reference implementation monitors both PID 0xD034 (dongle,
-   wireless) and PID 0xD037 (wired/charging). The BatterMouse app should do the same to
-   show accurate percentage while charging.
+3. **Usage page 0x008C is "Battery System"** per USB HID Usage Tables. Not claimed by
+   mouhid.sys or any Windows system driver on Windows 11.
 
-4. **No feature report scanning needed:** The reference implementation uses only input reports
-   (32-byte reads in a loop). Feature report scanning can be attempted in Plan 02 but is
-   likely unnecessary.
+4. **keychron-m3-linux vendor_id typo:** The source comment says `0x3414` but the correct value
+   is 0x3434 (confirmed by `hid.enumerate()` output showing `0x3434`).
