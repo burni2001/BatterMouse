@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Phase 3 context gathered
-last_updated: "2026-03-13T11:28:29.592Z"
+stopped_at: Completed 03-01-PLAN.md (tray.ico EmbeddedResource)
+last_updated: "2026-03-13T11:51:55.820Z"
 last_activity: 2026-03-13 — Phase 2 plan 04 complete (integration verification)
 progress:
   total_phases: 3
   completed_phases: 2
-  total_plans: 6
-  completed_plans: 6
-  percent: 100
+  total_plans: 9
+  completed_plans: 7
+  percent: 78
 ---
 
 # STATE
@@ -27,12 +27,12 @@ See: .planning/PROJECT.md (updated 2026-03-12)
 
 ## Current Position
 
-Phase: 2 of 3 (C# App) — COMPLETE
-Plan: 4 of 4 in current phase — COMPLETE
-Status: Phase 2 complete; ready for Phase 3 (Ship)
-Last activity: 2026-03-13 — Phase 2 plan 04 complete (integration verification)
+Phase: 3 of 3 (Ship) — IN PROGRESS
+Plan: 1 of 3 in current phase — COMPLETE
+Status: Phase 3 in progress; plan 03-01 (tray.ico + EmbeddedResource) complete
+Last activity: 2026-03-13 — Phase 3 plan 01 complete (tray.ico multi-size + EmbeddedResource wiring)
 
-Progress: [██████████] 100% (Phase 2 of 3 complete)
+Progress: [████████░░] 78% (7 of 9 plans complete)
 
 ## Accumulated Context
 
@@ -55,6 +55,7 @@ Progress: [██████████] 100% (Phase 2 of 3 complete)
 - [Phase 02-core-app]: AppContext uses SystemIcons.Application as placeholder tray icon for compile-time independence from tray.ico file
 - [Phase 02-04 gate confirmed 2026-03-13]: All 5 requirements met — 13/13 unit tests green; human smoke-tested tray, HKCU registry, HID read, clean exit
 - [Phase 02-04 gate confirmed 2026-03-13]: NOTF-01 (20% toast) verified by unit tests; live integration requires mouse battery <=20%
+- [Phase 03-ship]: ICO generated via C# GDI+ (ImageMagick unavailable); EmbeddedResource replaces Content/CopyToOutputDirectory for single-file publish
 
 ### Pending Todos
 
@@ -66,6 +67,6 @@ None. Phase 1 primary risk (unknown byte offset) is resolved.
 
 ## Session Continuity
 
-Last session: 2026-03-13T11:28:29.589Z
-Stopped at: Phase 3 context gathered
-Resume file: .planning/phases/03-ship/03-CONTEXT.md
+Last session: 2026-03-13T11:51:55.818Z
+Stopped at: Completed 03-01-PLAN.md (tray.ico EmbeddedResource)
+Resume file: None
