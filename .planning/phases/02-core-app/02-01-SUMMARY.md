@@ -131,6 +131,10 @@ None - no external service configuration required.
 - Program.cs references AppContext which does not exist yet (created in 02-03) — build will fail until 02-03 completes (expected)
 - tray.ico is a placeholder binary (notepad.exe copy) — replace with real icon in Phase 3
 
+## Self-Check: PASSED
+
+All 7 files confirmed on disk. Both commits (e181715, 60404f9) confirmed in git log.
+
 ---
 *Phase: 02-core-app*
 *Completed: 2026-03-13*
