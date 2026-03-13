@@ -13,10 +13,11 @@ namespace BatterMouse;
 /// </summary>
 public class HidReader
 {
-    public const int VID = 0x3434;
-    public const int PID_WIRELESS = 0xD030;
-    public const int PID_WIRED    = 0xD037;  // unconfirmed — enumerate as fallback
-    public const int BatteryByteOffset = 5;
+    public const int  VID              = 0x3434;
+    public const int  PID_WIRELESS     = 0xD030;
+    public const int  PID_WIRED        = 0xD037;  // unconfirmed — enumerate as fallback
+    public const byte BatteryReportId  = 0x54;    // report ID confirmed empirically 2026-03-13
+    public const int  BatteryByteOffset = 5;
 
     public event Action<int>? BatteryLevelReceived;
 
@@ -24,12 +25,17 @@ public class HidReader
     private Thread? _thread;
 
     /// <summary>
-    /// Returns report[5] as int when report.Length > 5; null otherwise.
+    /// Returns report[5] as int when the report has the expected report ID (0x54) and is
+    /// long enough; null otherwise.  Ignoring reports with a different ID prevents misreads
+    /// when Keychron Launcher is open and the dongle emits additional report types whose
+    /// byte 5 is a small value (0x02, 0x04) unrelated to battery percentage.
     /// Called by unit tests directly (no instance required).
     /// </summary>
     public static int? ParseBattery(byte[] report)
     {
         if (report.Length <= BatteryByteOffset)
+            return null;
+        if (report[0] != BatteryReportId)
             return null;
         return report[BatteryByteOffset];
     }

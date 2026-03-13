@@ -7,14 +7,21 @@ namespace BatterMouse.Tests;
 // They WILL fail to compile until 02-02 creates HidReader.cs.
 public class HidReaderTests
 {
+    // Helper: build a minimal valid 32-byte battery report with the correct report ID.
+    private static byte[] MakeReport(byte batteryPct)
+    {
+        var report = new byte[32];
+        report[0] = HidReader.BatteryReportId; // 0x54
+        report[5] = batteryPct;
+        return report;
+    }
+
     [Fact]
     [Trait("Category", "Unit")]
     public void ParseBattery_ReturnsValueAtOffset5()
     {
         // report[5] = 70 (0x46) — typical battery reading
-        var report = new byte[32];
-        report[5] = 0x46; // 70%
-        int? result = HidReader.ParseBattery(report);
+        int? result = HidReader.ParseBattery(MakeReport(0x46));
         Assert.Equal(70, result);
     }
 
@@ -22,9 +29,7 @@ public class HidReaderTests
     [Trait("Category", "Unit")]
     public void ParseBattery_ReturnsBoundaryValue_20Percent()
     {
-        var report = new byte[32];
-        report[5] = 20;
-        int? result = HidReader.ParseBattery(report);
+        int? result = HidReader.ParseBattery(MakeReport(20));
         Assert.Equal(20, result);
     }
 
@@ -43,6 +48,19 @@ public class HidReaderTests
     public void ParseBattery_ReturnsNull_ForEmptyReport()
     {
         var report = Array.Empty<byte>();
+        int? result = HidReader.ParseBattery(report);
+        Assert.Null(result);
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public void ParseBattery_ReturnsNull_WhenReportIdDoesNotMatch()
+    {
+        // Reproduces the Keychron Launcher bug: dongle emits an extra report type whose
+        // byte 5 is 0x02 or 0x04, not the real battery percentage.
+        var report = new byte[32];
+        report[0] = 0x01; // wrong report ID — not the battery report
+        report[5] = 0x02; // would be misread as "2%" without the ID guard
         int? result = HidReader.ParseBattery(report);
         Assert.Null(result);
     }
