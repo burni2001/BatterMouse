@@ -1,0 +1,8 @@
+D:\OneDrive\Coding Projects\BatterMouse\publish_test3\BatterMouse.exe
+D:\OneDrive\Coding Projects\BatterMouse\publish_test3\BatterMouse.dll
+D:\OneDrive\Coding Projects\BatterMouse\publish_test3\BatterMouse.deps.json
+D:\OneDrive\Coding Projects\BatterMouse\publish_test3\BatterMouse.runtimeconfig.json
+D:\OneDrive\Coding Projects\BatterMouse\publish_test3\BatterMouse.pdb
+D:\OneDrive\Coding Projects\BatterMouse\publish_test3\Microsoft.Windows.SDK.NET.dll
+D:\OneDrive\Coding Projects\BatterMouse\publish_test3\WinRT.Runtime.dll
+D:\OneDrive\Coding Projects\BatterMouse\publish_test3\HidSharp.dll

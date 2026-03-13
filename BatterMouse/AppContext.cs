@@ -58,6 +58,8 @@ internal sealed class AppContext : ApplicationContext
             ContextMenuStrip = BuildMenu()
         };
 
+        ToastHelper.Register(_trayIcon);
+
         // Capture UI SynchronizationContext for thread-safe updates when handle not yet created
         var uiContext = SynchronizationContext.Current;
 

@@ -1,0 +1,6 @@
+D:\OneDrive\Coding Projects\BatterMouse\publish_test4\BatterMouse.exe
+D:\OneDrive\Coding Projects\BatterMouse\publish_test4\BatterMouse.dll
+D:\OneDrive\Coding Projects\BatterMouse\publish_test4\BatterMouse.deps.json
+D:\OneDrive\Coding Projects\BatterMouse\publish_test4\BatterMouse.runtimeconfig.json
+D:\OneDrive\Coding Projects\BatterMouse\publish_test4\BatterMouse.pdb
+D:\OneDrive\Coding Projects\BatterMouse\publish_test4\HidSharp.dll

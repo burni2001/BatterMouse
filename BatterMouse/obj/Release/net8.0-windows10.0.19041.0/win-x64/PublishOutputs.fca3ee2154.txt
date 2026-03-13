@@ -1,0 +1,2 @@
+D:\OneDrive\Coding Projects\BatterMouse\publish_test\BatterMouse.pdb
+D:\OneDrive\Coding Projects\BatterMouse\publish_test\BatterMouse.exe

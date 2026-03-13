@@ -1,31 +1,27 @@
-using Microsoft.Toolkit.Uwp.Notifications;
+using System.Windows.Forms;
 
 namespace BatterMouse;
 
 /// <summary>
-/// Wrapper for Windows toast notifications.
-/// Uses ToastContentBuilder (Microsoft.Toolkit.Uwp.Notifications) — NOT ShowBalloonTip
-/// (ShowBalloonTip is banned: Windows 11 Action Center does not display balloon tips).
+/// Shows notifications via NotifyIcon.ShowBalloonTip.
+/// On Windows 10+ the shell converts balloon tips to proper toast notifications
+/// that appear in the Action Center — no WinRT projection layer required.
+/// Register() must be called after the NotifyIcon is created.
 /// </summary>
 public static class ToastHelper
 {
-    /// <summary>
-    /// Shows a low battery toast notification with the current battery level.
-    /// </summary>
+    private static NotifyIcon? _icon;
+
+    public static void Register(NotifyIcon icon) => _icon = icon;
+
     public static void ShowLowBattery(int level)
     {
-        new ToastContentBuilder()
-            .AddText("BatterMouse — Low Battery")
-            .AddText($"Mouse battery is at {level}%. Connect USB cable to charge.")
-            .Show();
+        _icon?.ShowBalloonTip(
+            timeout: 5000,
+            tipTitle: "BatterMouse \u2014 Low Battery",
+            tipText: $"Mouse battery is at {level}%. Connect USB cable to charge.",
+            tipIcon: ToolTipIcon.Warning);
     }
 
-    /// <summary>
-    /// Cleans up toast notification COM registration.
-    /// Called from AppContext.ExitThreadCore (plan 02-03) on app exit.
-    /// </summary>
-    public static void Cleanup()
-    {
-        ToastNotificationManagerCompat.Uninstall();
-    }
+    public static void Cleanup() { }
 }
