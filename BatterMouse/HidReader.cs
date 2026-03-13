@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.Linq;
 using System.Threading;
 using HidSharp;
 
@@ -108,18 +109,89 @@ public class HidReader
         }
     }
 
+    // HID usage encoding: upper 16 bits = usage page, lower 16 bits = usage ID
+    private const uint BatterySystemUsagePage = 0x008C;
+    private const uint GenericDesktopPage     = 0x0001;
+    private const uint MouseUsage             = 0x0002;
+
     private static HidDevice? FindDevice()
     {
-        // Enumerate PID_WIRELESS first (confirmed), then PID_WIRED (unverified fallback)
-        var candidates = DeviceList.Local.GetHidDevices(VID, PID_WIRELESS);
-        foreach (var d in candidates)
-            return d;
+        // The Keychron Link dongle exposes 16 HID top-level collections (TLCs).
+        // We must open the Battery System TLC (usage_page=0x008C, MI_01), not MI_00.
+        //
+        // When two Keychron dongles are present (e.g. keyboard + mouse), we prefer
+        // the dongle that also has a mouse TLC (usage_page=0x0001, usage=0x0002).
+        // Dongles are grouped by their Windows instance ID (the segment between the
+        // second and third '#' in the HID device path).
 
-        var wiredCandidates = DeviceList.Local.GetHidDevices(VID, PID_WIRED);
-        foreach (var d in wiredCandidates)
-            return d;
+        foreach (var pid in new[] { PID_WIRELESS, PID_WIRED })
+        {
+            var all = DeviceList.Local.GetHidDevices(VID, pid).ToList();
+            if (all.Count == 0) continue;
+
+            // Group TLCs that belong to the same physical dongle
+            var groups = all.GroupBy(d => ExtractInstanceId(d.DevicePath)).ToList();
+
+            HidDevice? fallback = null;
+
+            foreach (var group in groups)
+            {
+                var members = group.ToList();
+
+                var batteryDev = members.FirstOrDefault(d => HasUsagePage(d, BatterySystemUsagePage));
+                if (batteryDev == null) continue;
+
+                // Best match: the dongle that also has a mouse TLC
+                bool hasMouse = members.Any(d => HasUsage(d, GenericDesktopPage, MouseUsage));
+                if (hasMouse)
+                {
+                    Debug.WriteLine($"[HidReader] Found mouse+battery dongle: {batteryDev.DevicePath}");
+                    return batteryDev;
+                }
+
+                fallback ??= batteryDev;  // keep as fallback if no mouse TLC found
+            }
+
+            if (fallback != null)
+            {
+                Debug.WriteLine($"[HidReader] Using fallback battery device: {fallback.DevicePath}");
+                return fallback;
+            }
+        }
 
         return null;
+    }
+
+    /// <summary>
+    /// Extracts the Windows HID instance ID from a device path.
+    /// Path format: \\?\hid#vid_XXXX&amp;pid_XXXX&amp;mi_XX#&lt;instanceId&gt;#{guid}
+    /// </summary>
+    private static string ExtractInstanceId(string path)
+    {
+        var parts = path.Split('#');
+        return parts.Length >= 3 ? parts[2] : path;
+    }
+
+    private static bool HasUsagePage(HidDevice d, uint usagePage)
+    {
+        try
+        {
+            var desc = d.GetReportDescriptor();
+            return desc.DeviceItems.Any(item =>
+                item.Usages.GetAllValues().Any(u => (u >> 16) == usagePage));
+        }
+        catch { return false; }
+    }
+
+    private static bool HasUsage(HidDevice d, uint usagePage, uint usageId)
+    {
+        try
+        {
+            var desc = d.GetReportDescriptor();
+            return desc.DeviceItems.Any(item =>
+                item.Usages.GetAllValues().Any(u => (u >> 16) == usagePage && (u & 0xFFFF) == usageId));
+        }
+        catch { return false; }
     }
 
     private static void WaitOrCancel(int milliseconds, CancellationToken token)
