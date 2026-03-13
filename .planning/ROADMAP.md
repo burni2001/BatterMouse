@@ -65,5 +65,5 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Protocol Discovery | 2/2 | Complete | 2026-03-13 |
-| 2. Core App | 1/4 | In Progress|  |
+| 2. Core App | 3/4 | In Progress|  |
 | 3. Ship | 0/? | Not started | - |

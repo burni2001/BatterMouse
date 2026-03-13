@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: Completed 02-core-app/02-01-PLAN.md
-last_updated: "2026-03-13T00:08:28.960Z"
+stopped_at: Completed 02-core-app/02-02-PLAN.md
+last_updated: "2026-03-13T00:12:36.744Z"
 last_activity: 2026-03-13 — Phase 1 complete
 progress:
   total_phases: 3
   completed_phases: 1
   total_plans: 6
-  completed_plans: 3
+  completed_plans: 5
   percent: 33
 ---
 
@@ -50,6 +50,8 @@ Progress: [███░░░░░░░] 33%
 - Use hidapi PyPI package (cython-hidapi) not hid (pyhidapi) — hid lacks bundled hidapi.dll on Windows (Phase 1 tooling only)
 - [Phase 02-core-app]: Wrote BatterMouse.csproj manually — dotnet template does not accept windows-versioned TFM in --framework flag
 - [Phase 02-core-app]: Added UseWindowsForms=true to test project csproj to allow ProjectReference to WinForms main project
+- [Phase 02-core-app]: AppContext.cs stub created to unblock build — plan 02-03 will replace with full implementation
+- [Phase 02-core-app]: ReadTimeout=Timeout.Infinite in HidReader — wireless reports arrive >20s apart, finite timeout causes spurious IOExceptions
 
 ### Pending Todos
 
@@ -61,6 +63,6 @@ None. Phase 1 primary risk (unknown byte offset) is resolved.
 
 ## Session Continuity
 
-Last session: 2026-03-13T00:08:28.958Z
-Stopped at: Completed 02-core-app/02-01-PLAN.md
+Last session: 2026-03-13T00:12:30.198Z
+Stopped at: Completed 02-core-app/02-02-PLAN.md
 Resume file: None
