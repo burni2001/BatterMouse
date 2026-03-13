@@ -477,3 +477,4 @@ D:\OneDrive\Coding Projects\BatterMouse\BatterMouse\obj\Release\net8.0-windows10
 D:\OneDrive\Coding Projects\BatterMouse\BatterMouse\obj\Release\net8.0-windows10.0.19041.0\win-x64\BatterMouse.pdb
 D:\OneDrive\Coding Projects\BatterMouse\BatterMouse\obj\Release\net8.0-windows10.0.19041.0\win-x64\BatterMouse.genruntimeconfig.cache
 D:\OneDrive\Coding Projects\BatterMouse\BatterMouse\obj\Release\net8.0-windows10.0.19041.0\win-x64\ref\BatterMouse.dll
+D:\OneDrive\Coding Projects\BatterMouse\BatterMouse\obj\Release\net8.0-windows10.0.19041.0\win-x64\BatterMouse.sourcelink.json

@@ -63,49 +63,66 @@ public class HidReader
 
     private void ReadLoop(CancellationToken token)
     {
-        while (!token.IsCancellationRequested)
+        // Fires immediately when USB/HID device list changes (cable plug, dongle reconnect, etc.)
+        using var deviceChanged = new SemaphoreSlim(0, 1);
+        EventHandler<DeviceListChangedEventArgs> onChanged = (_, _) =>
         {
-            HidDevice? device = FindDevice();
+            if (deviceChanged.CurrentCount == 0)
+                deviceChanged.Release();
+        };
+        DeviceList.Local.Changed += onChanged;
 
-            if (device == null)
+        try
+        {
+            while (!token.IsCancellationRequested)
             {
-                Debug.WriteLine("[HidReader] Device not found — retrying in 5s");
-                WaitOrCancel(5000, token);
-                continue;
-            }
+                HidDevice? device = FindDevice();
 
-            if (!device.TryOpen(out HidStream? stream))
-            {
-                Debug.WriteLine("[HidReader] TryOpen failed — retrying in 5s");
-                WaitOrCancel(5000, token);
-                continue;
-            }
-
-            using (stream)
-            {
-                // Wireless reports arrive infrequently (>20s between updates).
-                // Do NOT set a finite ReadTimeout — it will cause spurious IOExceptions.
-                stream.ReadTimeout = Timeout.Infinite;
-
-                try
+                if (device == null)
                 {
-                    while (!token.IsCancellationRequested)
+                    Debug.WriteLine("[HidReader] Device not found — waiting for device change or 5s");
+                    WaitForDeviceOrTimeout(deviceChanged, 5000, token);
+                    continue;
+                }
+
+                if (!device.TryOpen(out HidStream? stream))
+                {
+                    Debug.WriteLine("[HidReader] TryOpen failed — retrying in 5s");
+                    WaitForDeviceOrTimeout(deviceChanged, 5000, token);
+                    continue;
+                }
+
+                using (stream)
+                {
+                    // Wireless reports arrive infrequently (>20s between updates).
+                    // Do NOT set a finite ReadTimeout — it will cause spurious IOExceptions.
+                    stream.ReadTimeout = Timeout.Infinite;
+
+                    try
                     {
-                        byte[] report = stream.Read();
-                        int? level = ParseBattery(report);
-                        if (level.HasValue)
+                        while (!token.IsCancellationRequested)
                         {
-                            BatteryLevelReceived?.Invoke(level.Value);
+                            byte[] report = stream.Read();
+                            int? level = ParseBattery(report);
+                            // level == 0 is emitted on cable-unplug as a disconnect marker — ignore it
+                            if (level is > 0)
+                            {
+                                BatteryLevelReceived?.Invoke(level.Value);
+                            }
                         }
                     }
-                }
-                catch (IOException ex)
-                {
-                    // Device disconnected — re-enumerate after short delay
-                    Debug.WriteLine($"[HidReader] IOException (device disconnect?): {ex.Message}");
-                    WaitOrCancel(5000, token);
+                    catch (IOException ex)
+                    {
+                        // Device disconnected — re-enumerate immediately on next device change
+                        Debug.WriteLine($"[HidReader] IOException (device disconnect?): {ex.Message}");
+                        WaitForDeviceOrTimeout(deviceChanged, 5000, token);
+                    }
                 }
             }
+        }
+        finally
+        {
+            DeviceList.Local.Changed -= onChanged;
         }
     }
 
@@ -194,15 +211,16 @@ public class HidReader
         catch { return false; }
     }
 
-    private static void WaitOrCancel(int milliseconds, CancellationToken token)
+    /// <summary>
+    /// Waits until <paramref name="signal"/> is released, <paramref name="milliseconds"/> elapse,
+    /// or <paramref name="token"/> is cancelled — whichever comes first.
+    /// </summary>
+    private static void WaitForDeviceOrTimeout(SemaphoreSlim signal, int milliseconds, CancellationToken token)
     {
         try
         {
-            Task.Delay(milliseconds, token).Wait();
+            signal.Wait(milliseconds, token);
         }
-        catch (AggregateException)
-        {
-            // Cancelled — that's fine, loop will exit naturally
-        }
+        catch (OperationCanceledException) { }
     }
 }
