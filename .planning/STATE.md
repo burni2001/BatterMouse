@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: in_progress
-stopped_at: Completed 01-protocol-discovery/01-02-PLAN.md — Phase 1 complete
-last_updated: "2026-03-13T00:00:00.000Z"
-last_activity: 2026-03-13 — Phase 1 complete, battery byte offset confirmed
+status: planning
+stopped_at: Completed 02-core-app/02-01-PLAN.md
+last_updated: "2026-03-13T00:08:28.960Z"
+last_activity: 2026-03-13 — Phase 1 complete
 progress:
   total_phases: 3
   completed_phases: 1
-  total_plans: 2
-  completed_plans: 2
+  total_plans: 6
+  completed_plans: 3
   percent: 33
 ---
 
@@ -48,6 +48,8 @@ Progress: [███░░░░░░░] 33%
 - **[CONFIRMED empirically 2026-03-13]** Battery reports arrive infrequently wirelessly (>20s); immediate when USB cable connects
 - **[CONFIRMED empirically 2026-03-13]** C# reader should use persistent blocking thread (no timeout), not a poll loop
 - Use hidapi PyPI package (cython-hidapi) not hid (pyhidapi) — hid lacks bundled hidapi.dll on Windows (Phase 1 tooling only)
+- [Phase 02-core-app]: Wrote BatterMouse.csproj manually — dotnet template does not accept windows-versioned TFM in --framework flag
+- [Phase 02-core-app]: Added UseWindowsForms=true to test project csproj to allow ProjectReference to WinForms main project
 
 ### Pending Todos
 
@@ -59,6 +61,6 @@ None. Phase 1 primary risk (unknown byte offset) is resolved.
 
 ## Session Continuity
 
-Last session: 2026-03-13
-Stopped at: Phase 1 complete. Next: plan Phase 2.
+Last session: 2026-03-13T00:08:28.958Z
+Stopped at: Completed 02-core-app/02-01-PLAN.md
 Resume file: None
