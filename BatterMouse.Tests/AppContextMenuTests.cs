@@ -12,16 +12,21 @@ namespace BatterMouse.Tests;
 /// </summary>
 public class AppContextMenuTests
 {
-    private static ContextMenuStrip BuildMenuOnSta()
+    /// <summary>
+    /// Builds the menu on an STA thread (required for WinForms) and returns both the menu
+    /// and its container. Caller must dispose both when done.
+    /// </summary>
+    private static (ContextMenuStrip menu, Container container) BuildMenuOnSta()
     {
         ContextMenuStrip? menu = null;
+        Container? container = null;
         Exception? ex = null;
 
         var thread = new Thread(() =>
         {
             try
             {
-                using var container = new Container();
+                container = new Container();
                 menu = AppContext.BuildMenuInternal(container);
             }
             catch (Exception e)
@@ -34,42 +39,52 @@ public class AppContextMenuTests
         thread.Join();
 
         if (ex != null) throw new Exception("STA thread threw", ex);
-        return menu!;
+        return (menu!, container!);
     }
 
     [Fact]
     public void Menu_HasFourItems()
     {
-        using var menu = BuildMenuOnSta();
-        Assert.Equal(4, menu.Items.Count);
+        var (menu, container) = BuildMenuOnSta();
+        using (container) using (menu)
+            Assert.Equal(4, menu.Items.Count);
     }
 
     [Fact]
     public void Menu_FirstItem_TextIsBatteryDash()
     {
-        using var menu = BuildMenuOnSta();
-        Assert.Equal("Battery: --", menu.Items[0].Text);
+        var (menu, container) = BuildMenuOnSta();
+        using (container) using (menu)
+            Assert.Equal("Battery: --", menu.Items[0].Text);
     }
 
     [Fact]
     public void Menu_FirstItem_IsDisabled()
     {
-        using var menu = BuildMenuOnSta();
-        Assert.False(menu.Items[0].Enabled);
+        var (menu, container) = BuildMenuOnSta();
+        using (container) using (menu)
+            Assert.False(menu.Items[0].Enabled);
     }
 
     [Fact]
     public void Menu_ThirdItem_TextIsStartWithWindows()
     {
-        using var menu = BuildMenuOnSta();
-        Assert.Equal("Start with Windows", menu.Items[2].Text);
+        var (menu, container) = BuildMenuOnSta();
+        using (container) using (menu)
+            Assert.Equal("Start with Windows", menu.Items[2].Text);
     }
 
     [Fact]
     public void Menu_ThirdItem_CheckedReflectsStartupManager()
     {
-        using var menu = BuildMenuOnSta();
-        var startupItem = (ToolStripMenuItem)menu.Items[2];
-        Assert.Equal(StartupManager.IsStartupEnabled(), startupItem.Checked);
+        var (menu, container) = BuildMenuOnSta();
+        using (container)
+        {
+            using (menu)
+            {
+                var startupItem = (ToolStripMenuItem)menu.Items[2];
+                Assert.Equal(StartupManager.IsStartupEnabled(), startupItem.Checked);
+            }
+        }
     }
 }
