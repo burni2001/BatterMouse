@@ -56,7 +56,12 @@ Plans:
   1. A single `BatterMouse.exe` runs on a clean Windows 11 machine with no .NET runtime pre-installed
   2. The tray icon context menu lets the user see current battery percentage, toggle auto-start, and exit cleanly
   3. Closing the app via the tray menu exits the process completely — no ghost process remains
-**Plans**: TBD
+**Plans**: 3 plans
+
+Plans:
+- [ ] 03-01-PLAN.md — Tray icon asset + EmbeddedResource: draw tray.ico, switch csproj from Content to EmbeddedResource
+- [ ] 03-02-PLAN.md — AppContext polish + tests: full context menu, real icon load, thread-safe HID updates
+- [ ] 03-03-PLAN.md — GitHub Actions release workflow + manual smoke verification checkpoint
 
 ## Progress
 
@@ -66,4 +71,4 @@ Plans:
 |-------|----------------|--------|-----------|
 | 1. Protocol Discovery | 2/2 | Complete | 2026-03-13 |
 | 2. Core App | 4/4 | Complete | 2026-03-13 |
-| 3. Ship | 0/? | Not started | - |
+| 3. Ship | 0/3 | Not started | - |
