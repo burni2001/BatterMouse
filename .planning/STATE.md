@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: Completed 02-core-app/02-03-PLAN.md
-last_updated: "2026-03-13T00:13:01.031Z"
-last_activity: 2026-03-13 — Phase 1 complete
+stopped_at: Completed 02-core-app/02-04-PLAN.md
+last_updated: "2026-03-13T12:00:00.000Z"
+last_activity: 2026-03-13 — Phase 2 complete
 progress:
   total_phases: 3
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 6
-  completed_plans: 5
-  percent: 83
+  completed_plans: 6
+  percent: 100
 ---
 
 # STATE
@@ -23,16 +23,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-12)
 
 **Core value:** Never be caught with a dead mouse
-**Current focus:** Phase 2 — C# app implementation
+**Current focus:** Phase 3 — Ship (single-file EXE, branded icon, distribution)
 
 ## Current Position
 
-Phase: 2 of 3 (C# App)
-Plan: 3 of 4 in current phase
-Status: In Progress
-Last activity: 2026-03-13 — Phase 2 plan 03 complete
+Phase: 2 of 3 (C# App) — COMPLETE
+Plan: 4 of 4 in current phase — COMPLETE
+Status: Phase 2 complete; ready for Phase 3 (Ship)
+Last activity: 2026-03-13 — Phase 2 plan 04 complete (integration verification)
 
-Progress: [████████░░] 83%
+Progress: [██████████] 100% (Phase 2 of 3 complete)
 
 ## Accumulated Context
 
@@ -53,6 +53,8 @@ Progress: [████████░░] 83%
 - [Phase 02-core-app]: AppContext.cs stub created to unblock build — plan 02-03 will replace with full implementation
 - [Phase 02-core-app]: ReadTimeout=Timeout.Infinite in HidReader — wireless reports arrive >20s apart, finite timeout causes spurious IOExceptions
 - [Phase 02-core-app]: AppContext uses SystemIcons.Application as placeholder tray icon for compile-time independence from tray.ico file
+- [Phase 02-04 gate confirmed 2026-03-13]: All 5 requirements met — 13/13 unit tests green; human smoke-tested tray, HKCU registry, HID read, clean exit
+- [Phase 02-04 gate confirmed 2026-03-13]: NOTF-01 (20% toast) verified by unit tests; live integration requires mouse battery <=20%
 
 ### Pending Todos
 
@@ -64,6 +66,6 @@ None. Phase 1 primary risk (unknown byte offset) is resolved.
 
 ## Session Continuity
 
-Last session: 2026-03-13T00:13:01.028Z
-Stopped at: Completed 02-core-app/02-03-PLAN.md
+Last session: 2026-03-13T12:00:00.000Z
+Stopped at: Completed 02-core-app/02-04-PLAN.md
 Resume file: None

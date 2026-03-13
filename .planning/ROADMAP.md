@@ -7,7 +7,7 @@ Three coarse phases take BatterMouse from unknown HID protocol to a daily-use ba
 ## Phases
 
 - [ ] **Phase 1: Protocol Discovery** - Identify the exact HID report byte that carries battery level for this Keychron mouse
-- [ ] **Phase 2: Core App** - Build the full BatterMouse app satisfying all five active requirements
+- [x] **Phase 2: Core App** - Build the full BatterMouse app satisfying all five active requirements
 - [ ] **Phase 3: Ship** - Publish a self-contained EXE polished for daily use
 
 ## Phase Details
@@ -43,10 +43,10 @@ Plans:
 **Plans**: 4 plans
 
 Plans:
-- [ ] 02-01-PLAN.md — C# solution scaffold: main project + test project with failing stubs
-- [ ] 02-02-PLAN.md — HidReader + BatteryMonitor + ToastHelper with unit tests (TDD)
-- [ ] 02-03-PLAN.md — AppContext + StartupManager with unit tests (TDD)
-- [ ] 02-04-PLAN.md — Integration verification: full test suite + manual smoke checkpoint
+- [x] 02-01-PLAN.md — C# solution scaffold: main project + test project with failing stubs
+- [x] 02-02-PLAN.md — HidReader + BatteryMonitor + ToastHelper with unit tests (TDD)
+- [x] 02-03-PLAN.md — AppContext + StartupManager with unit tests (TDD)
+- [x] 02-04-PLAN.md — Integration verification: full test suite + manual smoke checkpoint
 
 ### Phase 3: Ship
 **Goal**: BatterMouse.exe is a single self-contained file that installs by copy and runs reliably day-to-day
@@ -65,5 +65,5 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Protocol Discovery | 2/2 | Complete | 2026-03-13 |
-| 2. Core App | 3/4 | In Progress|  |
+| 2. Core App | 4/4 | Complete | 2026-03-13 |
 | 3. Ship | 0/? | Not started | - |
