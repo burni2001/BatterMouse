@@ -12,6 +12,7 @@ internal static class Program
         using var mutex = new Mutex(true, "BatterMouse_SingleInstance", out createdNew);
         if (!createdNew) return;  // second instance — exit silently
 
+        Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
         Application.EnableVisualStyles();
         Application.SetCompatibleTextRenderingDefault(false);
         Application.Run(new AppContext());

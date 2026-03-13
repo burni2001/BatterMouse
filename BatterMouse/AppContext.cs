@@ -89,7 +89,7 @@ internal sealed class AppContext : ApplicationContext
     /// </summary>
     internal static ContextMenuStrip BuildMenuInternal(IContainer container)
     {
-        var menu = new ContextMenuStrip(container);
+        var menu = new Win11ContextMenuStrip(container);
 
         var batteryLabel = new ToolStripMenuItem("Battery: --") { Enabled = false };
         menu.Items.Add(batteryLabel);
