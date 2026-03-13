@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: in-progress
-stopped_at: Completed 03-02-PLAN.md (AppContext polished tray experience)
-last_updated: "2026-03-13T11:57:00Z"
-last_activity: 2026-03-13 — Phase 3 plan 02 complete (AppContext full tray experience, 20 tests green)
+status: complete
+stopped_at: Completed 03-03-PLAN.md (GitHub Actions release workflow + smoke test)
+last_updated: "2026-03-13T12:30:00Z"
+last_activity: 2026-03-13 — Phase 3 plan 03 complete (release workflow, smoke test approved, v1.0 ready to ship)
 progress:
   total_phases: 3
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 9
-  completed_plans: 8
-  percent: 89
+  completed_plans: 9
+  percent: 100
 ---
 
 # STATE
@@ -23,16 +23,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-12)
 
 **Core value:** Never be caught with a dead mouse
-**Current focus:** Phase 3 — Ship (single-file EXE, branded icon, distribution)
+**Current focus:** COMPLETE — all phases shipped
 
 ## Current Position
 
-Phase: 3 of 3 (Ship) — IN PROGRESS
-Plan: 2 of 3 in current phase — COMPLETE
-Status: Phase 3 in progress; plan 03-02 (full AppContext tray experience) complete
-Last activity: 2026-03-13 — Phase 3 plan 02 complete (embedded icon, 4-item menu, thread-safe HID dispatch, 20 tests green)
+Phase: 3 of 3 (Ship) — COMPLETE
+Plan: 3 of 3 in current phase — COMPLETE
+Status: All phases and plans complete; BatterMouse v1.0 ready to release
+Last activity: 2026-03-13 — Phase 3 plan 03 complete (GitHub Actions release workflow, smoke test approved)
 
-Progress: [█████████░] 89% (8 of 9 plans complete)
+Progress: [██████████] 100% (9 of 9 plans complete)
 
 ## Accumulated Context
 
@@ -59,6 +59,10 @@ Progress: [█████████░] 89% (8 of 9 plans complete)
 - [Phase 03-02]: BuildMenuInternal exposed as internal static — tests build menu directly without constructing AppContext (which starts HID reader)
 - [Phase 03-02]: CheckOnClick=false on startup toggle — state read explicitly from registry in ToggleStartup, not relying on WinForms auto-toggle
 - [Phase 03-02]: Dual UI-thread dispatch: BeginInvoke when menu handle ready, SynchronizationContext.Post as construction-time fallback
+- [Phase 03-03]: windows-latest runner required for win-x64 WinExe builds (ubuntu-latest produces link errors)
+- [Phase 03-03]: softprops/action-gh-release@v2 chosen (actions/create-release is archived/deprecated)
+- [Phase 03-03]: No --self-contained/-r flags on dotnet publish — already declared in BatterMouse.csproj
+- [Phase 03-03]: Human smoke test approved — real icon, 4-item menu, registry toggle, clean exit, single-file output all verified
 
 ### Pending Todos
 
@@ -70,6 +74,6 @@ None. Phase 1 primary risk (unknown byte offset) is resolved.
 
 ## Session Continuity
 
-Last session: 2026-03-13T11:57:00Z
-Stopped at: Completed 03-02-PLAN.md (AppContext polished tray experience)
+Last session: 2026-03-13T12:30:00Z
+Stopped at: Completed 03-03-PLAN.md (GitHub Actions release workflow + smoke test)
 Resume file: None
