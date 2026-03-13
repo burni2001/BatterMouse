@@ -1,0 +1,2 @@
+D:\OneDrive\Coding Projects\BatterMouse\smoke-publish\BatterMouse.pdb
+D:\OneDrive\Coding Projects\BatterMouse\smoke-publish\BatterMouse.exe

@@ -1,0 +1,2 @@
+C:\Users\Bernhard\AppData\Local\Temp\verify-publish\BatterMouse.pdb
+C:\Users\Bernhard\AppData\Local\Temp\verify-publish\BatterMouse.exe
