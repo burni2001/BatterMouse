@@ -19,8 +19,6 @@
     <PackageReference Include="Microsoft.Toolkit.Uwp.Notifications" Version="7.1.3" />
   </ItemGroup>
   <ItemGroup>
-    <Content Include="Resources\tray.ico">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
+    <EmbeddedResource Include="Resources\tray.ico" />
   </ItemGroup>
 </Project>
