@@ -8,11 +8,9 @@
     <ApplicationIcon>Resources\tray.ico</ApplicationIcon>
     <RootNamespace>BatterMouse</RootNamespace>
     <AssemblyName>BatterMouse</AssemblyName>
-    <!-- Phase 3 publish flags — present now so dotnet publish just works -->
     <PublishSingleFile>true</PublishSingleFile>
-    <SelfContained>true</SelfContained>
+    <SelfContained>false</SelfContained>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
-    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="HidSharp" Version="2.6.4" />
