@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: completed
-stopped_at: Completed 03-01-PLAN.md (tray.ico EmbeddedResource)
-last_updated: "2026-03-13T11:51:55.820Z"
-last_activity: 2026-03-13 — Phase 2 plan 04 complete (integration verification)
+status: in-progress
+stopped_at: Completed 03-02-PLAN.md (AppContext polished tray experience)
+last_updated: "2026-03-13T11:57:00Z"
+last_activity: 2026-03-13 — Phase 3 plan 02 complete (AppContext full tray experience, 20 tests green)
 progress:
   total_phases: 3
   completed_phases: 2
   total_plans: 9
-  completed_plans: 7
-  percent: 78
+  completed_plans: 8
+  percent: 89
 ---
 
 # STATE
@@ -28,11 +28,11 @@ See: .planning/PROJECT.md (updated 2026-03-12)
 ## Current Position
 
 Phase: 3 of 3 (Ship) — IN PROGRESS
-Plan: 1 of 3 in current phase — COMPLETE
-Status: Phase 3 in progress; plan 03-01 (tray.ico + EmbeddedResource) complete
-Last activity: 2026-03-13 — Phase 3 plan 01 complete (tray.ico multi-size + EmbeddedResource wiring)
+Plan: 2 of 3 in current phase — COMPLETE
+Status: Phase 3 in progress; plan 03-02 (full AppContext tray experience) complete
+Last activity: 2026-03-13 — Phase 3 plan 02 complete (embedded icon, 4-item menu, thread-safe HID dispatch, 20 tests green)
 
-Progress: [████████░░] 78% (7 of 9 plans complete)
+Progress: [█████████░] 89% (8 of 9 plans complete)
 
 ## Accumulated Context
 
@@ -56,6 +56,9 @@ Progress: [████████░░] 78% (7 of 9 plans complete)
 - [Phase 02-04 gate confirmed 2026-03-13]: All 5 requirements met — 13/13 unit tests green; human smoke-tested tray, HKCU registry, HID read, clean exit
 - [Phase 02-04 gate confirmed 2026-03-13]: NOTF-01 (20% toast) verified by unit tests; live integration requires mouse battery <=20%
 - [Phase 03-ship]: ICO generated via C# GDI+ (ImageMagick unavailable); EmbeddedResource replaces Content/CopyToOutputDirectory for single-file publish
+- [Phase 03-02]: BuildMenuInternal exposed as internal static — tests build menu directly without constructing AppContext (which starts HID reader)
+- [Phase 03-02]: CheckOnClick=false on startup toggle — state read explicitly from registry in ToggleStartup, not relying on WinForms auto-toggle
+- [Phase 03-02]: Dual UI-thread dispatch: BeginInvoke when menu handle ready, SynchronizationContext.Post as construction-time fallback
 
 ### Pending Todos
 
@@ -67,6 +70,6 @@ None. Phase 1 primary risk (unknown byte offset) is resolved.
 
 ## Session Continuity
 
-Last session: 2026-03-13T11:51:55.818Z
-Stopped at: Completed 03-01-PLAN.md (tray.ico EmbeddedResource)
+Last session: 2026-03-13T11:57:00Z
+Stopped at: Completed 03-02-PLAN.md (AppContext polished tray experience)
 Resume file: None

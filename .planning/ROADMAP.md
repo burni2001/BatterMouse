@@ -59,8 +59,8 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 03-01-PLAN.md — Tray icon asset + EmbeddedResource: draw tray.ico, switch csproj from Content to EmbeddedResource
-- [ ] 03-02-PLAN.md — AppContext polish + tests: full context menu, real icon load, thread-safe HID updates
+- [x] 03-01-PLAN.md — Tray icon asset + EmbeddedResource: draw tray.ico, switch csproj from Content to EmbeddedResource
+- [x] 03-02-PLAN.md — AppContext polish + tests: full context menu, real icon load, thread-safe HID updates
 - [ ] 03-03-PLAN.md — GitHub Actions release workflow + manual smoke verification checkpoint
 
 ## Progress
@@ -71,4 +71,4 @@ Plans:
 |-------|----------------|--------|-----------|
 | 1. Protocol Discovery | 2/2 | Complete | 2026-03-13 |
 | 2. Core App | 4/4 | Complete | 2026-03-13 |
-| 3. Ship | 1/3 | In Progress|  |
+| 3. Ship | 2/3 | In Progress|  |
