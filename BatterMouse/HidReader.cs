@@ -104,6 +104,17 @@ public class HidReader
                     // Do NOT set a finite ReadTimeout — it will cause spurious IOExceptions.
                     stream.ReadTimeout = Timeout.Infinite;
 
+                    // Poll immediately on connect so battery shows without waiting for a
+                    // spontaneous report (the device may not send one unprompted).
+                    TryPollBattery(stream);
+
+                    // Also re-poll every 30 s to keep the reading fresh.
+                    using var pollTimer = new System.Threading.Timer(
+                        _ => TryPollBattery(stream),
+                        null,
+                        TimeSpan.FromSeconds(30),
+                        TimeSpan.FromSeconds(30));
+
                     try
                     {
                         while (!token.IsCancellationRequested)
@@ -228,5 +239,31 @@ public class HidReader
             signal.Wait(milliseconds, token);
         }
         catch (OperationCanceledException) { }
+    }
+
+    /// <summary>
+    /// Attempts to read battery level on demand via a HID GetFeature call.
+    /// This makes the initial reading reliable — the device may not emit report 0x54
+    /// spontaneously until polled.  Safe to call from a timer thread.
+    /// </summary>
+    private void TryPollBattery(HidStream stream)
+    {
+        try
+        {
+            int len = Math.Max(8, stream.Device.GetMaxFeatureReportLength());
+            var buf = new byte[len];
+            buf[0] = BatteryReportId;
+            stream.GetFeature(buf);
+            int? level = ParseBattery(buf);
+            if (level is > 0)
+            {
+                Debug.WriteLine($"[HidReader] TryPollBattery: {level}%");
+                BatteryLevelReceived?.Invoke(level.Value);
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[HidReader] TryPollBattery failed: {ex.Message}");
+        }
     }
 }
