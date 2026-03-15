@@ -43,6 +43,32 @@ public class HidReader
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
                      "BatterMouse", "hid.log");
 
+    private static readonly string CachePath =
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                     "BatterMouse", "battery.cache");
+
+    private static void SaveLastLevel(int level)
+    {
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(CachePath)!);
+            File.WriteAllText(CachePath, level.ToString());
+        }
+        catch { }
+    }
+
+    /// <summary>Returns the last battery level written to disk, or null if unavailable.</summary>
+    public static int? LoadLastLevel()
+    {
+        try
+        {
+            if (!File.Exists(CachePath)) return null;
+            return int.TryParse(File.ReadAllText(CachePath).Trim(), out int v) && v > 0 && v <= 100
+                ? v : null;
+        }
+        catch { return null; }
+    }
+
     private static void Log(string msg)
     {
         string line = $"{DateTime.Now:HH:mm:ss.fff} {msg}";
@@ -368,7 +394,10 @@ public class HidReader
                                     int batt = r[5];
                                     Log($"[BatteryTLC] Battery {batt}%");
                                     if (batt > 0 && batt <= 100)
+                                    {
+                                        SaveLastLevel(batt);
                                         BatteryLevelReceived?.Invoke(batt);
+                                    }
                                 }
                             }
                         }

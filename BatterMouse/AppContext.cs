@@ -60,6 +60,14 @@ internal sealed class AppContext : ApplicationContext
 
         ToastHelper.Register(_trayIcon);
 
+        // Restore last known battery level immediately (before first HID report arrives)
+        int? cached = HidReader.LoadLastLevel();
+        if (cached.HasValue)
+        {
+            _batteryLabel.Text = $"Battery: {cached.Value}%";
+            _trayIcon.Text = $"{cached.Value}%";
+        }
+
         // Capture UI SynchronizationContext for thread-safe updates when handle not yet created
         var uiContext = SynchronizationContext.Current;
 
