@@ -53,7 +53,7 @@ internal sealed class AppContext : ApplicationContext
         _trayIcon = new NotifyIcon(_components)
         {
             Icon = icon,
-            Text = "BatterMouse \u2014 reading...",   // em dash: shown until first HID reading
+            Text = "BatterMouse",
             Visible = true,
             ContextMenuStrip = BuildMenu()
         };
