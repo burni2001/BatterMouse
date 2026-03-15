@@ -1,15 +1,30 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
+using System.Text;
 using System.Threading;
 using HidSharp;
 
 namespace BatterMouse;
 
 /// <summary>
-/// Reads battery level from the Keychron wireless mouse dongle via HID.
-/// VID 0x3434 / PID 0xD030 (Keychron Link dongle) — confirmed empirically 2026-03-13.
+/// Reads battery level from the Keychron M6 wireless mouse dongle via HID.
+/// VID 0x3434 / PID 0xD030 (Keychron Link 2.4 GHz dongle) — confirmed empirically 2026-03-13.
 /// PID 0xD037 (wired) is unverified — enumerated as fallback.
+///
+/// How it works:
+///   1. FindDevice() locates the FF60 vendor interface (mi_03) on the MOUSE dongle,
+///      disambiguating from a co-plugged keyboard dongle via CfgMgr32 USB parent matching.
+///   2. A Battery TLC listener (mi_01 / usage_page=0x008C) is opened on the same dongle.
+///   3. The device spontaneously pushes a 54-E2 report when the wireless link is established
+///      and whenever the battery drops by 1%.  Battery% is at report[5].
+///
+/// Report formats on mi_01 (Battery System TLC):
+///   54-E2 xx xx xx xx BATT STATUS ...  — MOUSE battery (pushed on connect + 1% change)
+///   54-E4 xx ...                        — KEYBOARD battery = 100% (not used)
 /// </summary>
 public class HidReader
 {
@@ -17,19 +32,37 @@ public class HidReader
     public const int  PID_WIRELESS     = 0xD030;
     public const int  PID_WIRED        = 0xD037;  // unconfirmed — enumerate as fallback
     public const byte BatteryReportId  = 0x54;    // report ID confirmed empirically 2026-03-13
-    public const int  BatteryByteOffset = 5;
+    public const int  BatteryByteOffset = 5;      // offset of battery% within a 54-E2 report
 
     public event Action<int>? BatteryLevelReceived;
 
     private CancellationTokenSource? _cts;
     private Thread? _thread;
 
+    private static readonly string LogPath =
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                     "BatterMouse", "hid.log");
+
+    private static void Log(string msg)
+    {
+        string line = $"{DateTime.Now:HH:mm:ss.fff} {msg}";
+        Debug.WriteLine($"[HidReader] {line}");
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(LogPath)!);
+            File.AppendAllText(LogPath, line + Environment.NewLine);
+        }
+        catch { }
+    }
+
     /// <summary>
-    /// Returns report[5] as int when the report has the expected report ID (0x54) and is
-    /// long enough; null otherwise.  Ignoring reports with a different ID prevents misreads
-    /// when Keychron Launcher is open and the dongle emits additional report types whose
-    /// byte 5 is a small value (0x02, 0x04) unrelated to battery percentage.
-    /// Called by unit tests directly (no instance required).
+    /// Extracts battery percentage from a 0x54 HID report (Battery TLC, mi_01).
+    ///
+    /// The mouse dongle pushes a 54-E2 report spontaneously: r[1]=0xE2, r[5]=battery%.
+    /// The keyboard dongle pushes 54-E4: r[1]=0xE4, r[1]&amp;0x7F = 100 (keyboard battery).
+    /// This method handles both; callers must filter by dongle identity when relevant.
+    ///
+    /// Called by unit tests directly.
     /// </summary>
     public static int? ParseBattery(byte[] report)
     {
@@ -37,14 +70,22 @@ public class HidReader
             return null;
         if (report[0] != BatteryReportId)
             return null;
+
+        // 54-E2 format (mouse battery): r[1]=0xE2, battery% at r[5]
+        if (report[1] == 0xE2)
+            return report[BatteryByteOffset];
+
+        // 54-E4 format (keyboard battery): battery encoded in lower 7 bits of r[1]
+        if (report[1] >= 0x80)
+            return report[1] & 0x7F;
+
+        // Legacy spontaneous format: battery at r[5]
         return report[BatteryByteOffset];
     }
 
     /// <summary>
     /// Starts a background thread that enumerates HID devices, opens the dongle,
-    /// and raises BatteryLevelReceived whenever a valid battery report is received.
-    ///
-    /// The thread is IsBackground=true so it does not prevent process exit.
+    /// and raises BatteryLevelReceived whenever a 54-E2 battery report is received.
     /// </summary>
     public void Start()
     {
@@ -69,7 +110,6 @@ public class HidReader
 
     private void ReadLoop(CancellationToken token)
     {
-        // Fires immediately when USB/HID device list changes (cable plug, dongle reconnect, etc.)
         using var deviceChanged = new SemaphoreSlim(0, 1);
         EventHandler<DeviceListChangedEventArgs> onChanged = (_, _) =>
         {
@@ -86,52 +126,44 @@ public class HidReader
 
                 if (device == null)
                 {
-                    Debug.WriteLine("[HidReader] Device not found — waiting for device change or 5s");
+                    Log("Device not found — waiting for device change or 5s");
                     WaitForDeviceOrTimeout(deviceChanged, 5000, token);
                     continue;
                 }
 
                 if (!device.TryOpen(out HidStream? stream))
                 {
-                    Debug.WriteLine("[HidReader] TryOpen failed — retrying in 5s");
+                    Log($"TryOpen failed on {device.DevicePath} — retrying in 5s");
                     WaitForDeviceOrTimeout(deviceChanged, 5000, token);
                     continue;
                 }
 
+                Log($"Stream opened: {device.DevicePath}");
+
                 using (stream)
                 {
-                    // Wireless reports arrive infrequently (>20s between updates).
-                    // Do NOT set a finite ReadTimeout — it will cause spurious IOExceptions.
+                    // Battery reports arrive on mi_01 (Battery TLC), not on mi_03 (FF60).
+                    // Open the Battery TLC now, tied to this stream's lifetime.
+                    using var streamCts = CancellationTokenSource.CreateLinkedTokenSource(token);
+                    StartBatteryTlcListener(device, streamCts.Token);
+
                     stream.ReadTimeout = Timeout.Infinite;
-
-                    // Poll immediately on connect so battery shows without waiting for a
-                    // spontaneous report (the device may not send one unprompted).
-                    TryPollBattery(stream);
-
-                    // Also re-poll every 30 s to keep the reading fresh.
-                    using var pollTimer = new System.Threading.Timer(
-                        _ => TryPollBattery(stream),
-                        null,
-                        TimeSpan.FromSeconds(30),
-                        TimeSpan.FromSeconds(30));
 
                     try
                     {
                         while (!token.IsCancellationRequested)
                         {
                             byte[] report = stream.Read();
-                            int? level = ParseBattery(report);
-                            // level == 0 is emitted on cable-unplug as a disconnect marker — ignore it
-                            if (level is > 0)
-                            {
-                                BatteryLevelReceived?.Invoke(level.Value);
-                            }
+
+                            // 0xB2 = device hello: wireless link established.
+                            if (report.Length >= 2 && report[1] == 0xB2)
+                                Log("Device hello received");
                         }
                     }
                     catch (IOException ex)
                     {
-                        // Device disconnected — re-enumerate immediately on next device change
-                        Debug.WriteLine($"[HidReader] IOException (device disconnect?): {ex.Message}");
+                        Log($"IOException (device disconnect?): {ex.Message}");
+                        streamCts.Cancel();
                         WaitForDeviceOrTimeout(deviceChanged, 5000, token);
                     }
                 }
@@ -147,48 +179,138 @@ public class HidReader
     private const uint BatterySystemUsagePage = 0x008C;
     private const uint GenericDesktopPage     = 0x0001;
     private const uint MouseUsage             = 0x0002;
+    private const uint VendorUsagePage        = 0xFF60;  // Keychron custom/raw HID (mi_03)
+
+    // --- Windows Configuration Manager API ---
+    // Used to walk up the device tree to the USB composite device, so we can
+    // correlate HID TLCs (mi_00, mi_01, mi_03) that belong to the same physical dongle.
+    // TLCs on the same dongle share a common USB composite device ancestor.
+
+    [DllImport("CfgMgr32.dll", CharSet = CharSet.Unicode)]
+    private static extern int CM_Locate_DevNodeW(out uint pdnDevInst, string pDeviceID, uint ulFlags);
+
+    [DllImport("CfgMgr32.dll")]
+    private static extern int CM_Get_Parent(out uint pdnDevInst, uint dnDevInst, uint ulFlags);
+
+    [DllImport("CfgMgr32.dll", CharSet = CharSet.Unicode)]
+    private static extern int CM_Get_Device_IDW(uint dnDevInst, StringBuilder Buffer, uint BufferLen, uint ulFlags);
+
+    private const int CR_SUCCESS = 0;
+
+    /// <summary>
+    /// Returns the USB composite device instance ID (e.g. "USB\VID_3434&amp;PID_D030\...")
+    /// for a HID device path.  All TLCs on the same physical USB dongle share this parent
+    /// even though their own instance IDs differ per USB interface.
+    /// Returns null if the device tree walk fails (non-fatal; falls back to heuristics).
+    /// </summary>
+    private static string? GetUsbCompositeParentId(string hidDevicePath)
+    {
+        // \\?\hid#vid_3434&pid_d030&mi_01&col01#9&3b58df5&0&0000#{guid}
+        // → HID\VID_3434&PID_D030&MI_01&COL01\9&3B58DF5&0&0000
+        var parts = hidDevicePath.Split('#');
+        if (parts.Length < 3) return null;
+        string instanceId = $"HID\\{parts[1]}\\{parts[2]}".ToUpperInvariant();
+
+        if (CM_Locate_DevNodeW(out uint devNode, instanceId, 0) != CR_SUCCESS)
+            return null;
+
+        // Walk up the device tree, looking for the USB composite device.
+        // The composite device path looks like "USB\VID_3434&PID_D030\{port_or_serial}"
+        // (no "&MI_" segment, distinguishing it from USB interface devices like
+        // "USB\VID_3434&PID_D030&MI_01\...").
+        uint current = devNode;
+        for (int depth = 0; depth < 6; depth++)
+        {
+            if (CM_Get_Parent(out uint parent, current, 0) != CR_SUCCESS)
+                return null;
+
+            var sb = new StringBuilder(300);
+            if (CM_Get_Device_IDW(parent, sb, 300, 0) == CR_SUCCESS)
+            {
+                string id = sb.ToString();
+                if (id.StartsWith("USB\\", StringComparison.OrdinalIgnoreCase) &&
+                    id.IndexOf("&MI_", StringComparison.OrdinalIgnoreCase) < 0)
+                    return id.ToUpperInvariant();
+            }
+
+            current = parent;
+        }
+
+        return null;
+    }
 
     private static HidDevice? FindDevice()
     {
-        // The Keychron Link dongle exposes 16 HID top-level collections (TLCs).
-        // We must open the Battery System TLC (usage_page=0x008C, MI_01), not MI_00.
+        // The Keychron Link dongle exposes several HID top-level collections (TLCs).
         //
-        // When two Keychron dongles are present (e.g. keyboard + mouse), we prefer
-        // the dongle that also has a mouse TLC (usage_page=0x0001, usage=0x0002).
-        // Dongles are grouped by their Windows instance ID (the segment between the
-        // second and third '#' in the HID device path).
+        // mi_03 (usage_page=0xFF60) is the vendor/raw HID interface used by the
+        // Keychron Launcher — we open this as the "primary" stream to detect the
+        // wireless hello (0xB2) and monitor for disconnect.
+        //
+        // When two Keychron dongles are present (keyboard + mouse) there will be two
+        // FF60 interfaces.  We pick the one whose USB composite ancestor also hosts a
+        // Mouse TLC (mi_00, usage=0x0001/0x0002).  Falls back to the first FF60 found.
 
         foreach (var pid in new[] { PID_WIRELESS, PID_WIRED })
         {
             var all = DeviceList.Local.GetHidDevices(VID, pid).ToList();
             if (all.Count == 0) continue;
 
-            // Group TLCs that belong to the same physical dongle
-            var groups = all.GroupBy(d => ExtractInstanceId(d.DevicePath)).ToList();
+            var vendorDevs = all.Where(d => HasUsagePage(d, VendorUsagePage)).ToList();
 
+            if (vendorDevs.Count == 1)
+            {
+                Log($"Found vendor (FF60) device: {vendorDevs[0].DevicePath}");
+                return vendorDevs[0];
+            }
+
+            if (vendorDevs.Count > 1)
+            {
+                var mouseDevs = all.Where(d => HasUsage(d, GenericDesktopPage, MouseUsage)).ToList();
+                var mouseParents = new HashSet<string>(
+                    mouseDevs
+                        .Select(d => GetUsbCompositeParentId(d.DevicePath))
+                        .Where(s => s != null)
+                        .Select(s => s!));
+
+                HidDevice? best = null;
+                if (mouseParents.Count > 0)
+                {
+                    best = vendorDevs.FirstOrDefault(d =>
+                    {
+                        var p = GetUsbCompositeParentId(d.DevicePath);
+                        return p != null && mouseParents.Contains(p);
+                    });
+                }
+
+                var chosen = best ?? vendorDevs[0];
+                Log($"Found vendor (FF60) device (multi-dongle pick{(best != null ? " via USB parent" : " fallback")}): {chosen.DevicePath}");
+                return chosen;
+            }
+
+            // No FF60 found — fall back to the Battery System TLC
+            var groups = all.GroupBy(d => ExtractInstanceId(d.DevicePath)).ToList();
             HidDevice? fallback = null;
 
             foreach (var group in groups)
             {
                 var members = group.ToList();
-
                 var batteryDev = members.FirstOrDefault(d => HasUsagePage(d, BatterySystemUsagePage));
                 if (batteryDev == null) continue;
 
-                // Best match: the dongle that also has a mouse TLC
                 bool hasMouse = members.Any(d => HasUsage(d, GenericDesktopPage, MouseUsage));
                 if (hasMouse)
                 {
-                    Debug.WriteLine($"[HidReader] Found mouse+battery dongle: {batteryDev.DevicePath}");
+                    Log($"Found mouse+battery dongle (Battery TLC fallback): {batteryDev.DevicePath}");
                     return batteryDev;
                 }
 
-                fallback ??= batteryDev;  // keep as fallback if no mouse TLC found
+                fallback ??= batteryDev;
             }
 
             if (fallback != null)
             {
-                Debug.WriteLine($"[HidReader] Using fallback battery device: {fallback.DevicePath}");
+                Log($"Using battery TLC fallback: {fallback.DevicePath}");
                 return fallback;
             }
         }
@@ -197,9 +319,72 @@ public class HidReader
     }
 
     /// <summary>
-    /// Extracts the Windows HID instance ID from a device path.
-    /// Path format: \\?\hid#vid_XXXX&amp;pid_XXXX&amp;mi_XX#&lt;instanceId&gt;#{guid}
+    /// Opens the Battery System TLC (mi_01, usage_page=0x008C) on the same physical dongle
+    /// as <paramref name="primaryDevice"/> and reads 54-E2 battery reports.
+    ///
+    /// The device pushes a 54-E2 report spontaneously when the wireless link is established
+    /// and whenever the battery drops by 1%.  No query command is needed.
+    /// The thread runs until <paramref name="token"/> is cancelled.
     /// </summary>
+    private void StartBatteryTlcListener(HidDevice primaryDevice, CancellationToken token)
+    {
+        string? primaryUsbParent = GetUsbCompositeParentId(primaryDevice.DevicePath);
+
+        foreach (var pid in new[] { PID_WIRELESS, PID_WIRED })
+        {
+            foreach (var dev in DeviceList.Local.GetHidDevices(VID, pid))
+            {
+                if (!HasUsagePage(dev, BatterySystemUsagePage)) continue;
+
+                // Only open the Battery TLC on the same physical dongle as the FF60 device.
+                string? devParent = GetUsbCompositeParentId(dev.DevicePath);
+                if (devParent != primaryUsbParent) continue;
+
+                var capture = dev;
+                new Thread(() =>
+                {
+                    if (!capture.TryOpen(out HidStream? s))
+                    {
+                        Log($"[BatteryTLC] TryOpen FAILED: {capture.DevicePath}");
+                        return;
+                    }
+                    using (s)
+                    {
+                        s.ReadTimeout = Timeout.Infinite;
+                        Log($"[BatteryTLC] Opened: {capture.DevicePath}");
+
+                        try
+                        {
+                            while (!token.IsCancellationRequested)
+                            {
+                                byte[] r = s.Read();
+
+                                // 54-E2: mouse battery notification.
+                                // r[0]=0x54 (reportId), r[1]=0xE2 (type), r[5]=battery%
+                                // Pushed spontaneously on wireless connect and on each 1% drop.
+                                // Confirmed empirically 2026-03-15 on Keychron M6 2.4G, firmware d.3.0.
+                                if (r.Length >= 7 && r[0] == BatteryReportId && r[1] == 0xE2)
+                                {
+                                    int batt = r[5];
+                                    Log($"[BatteryTLC] Battery {batt}%");
+                                    if (batt > 0 && batt <= 100)
+                                        BatteryLevelReceived?.Invoke(batt);
+                                }
+                            }
+                        }
+                        catch (IOException) { }
+                    }
+                })
+                {
+                    IsBackground = true,
+                    Name = "BatteryTLC"
+                }.Start();
+
+                return; // one Battery TLC per dongle is sufficient
+            }
+        }
+    }
+
     private static string ExtractInstanceId(string path)
     {
         var parts = path.Split('#');
@@ -228,10 +413,6 @@ public class HidReader
         catch { return false; }
     }
 
-    /// <summary>
-    /// Waits until <paramref name="signal"/> is released, <paramref name="milliseconds"/> elapse,
-    /// or <paramref name="token"/> is cancelled — whichever comes first.
-    /// </summary>
     private static void WaitForDeviceOrTimeout(SemaphoreSlim signal, int milliseconds, CancellationToken token)
     {
         try
@@ -239,31 +420,5 @@ public class HidReader
             signal.Wait(milliseconds, token);
         }
         catch (OperationCanceledException) { }
-    }
-
-    /// <summary>
-    /// Attempts to read battery level on demand via a HID GetFeature call.
-    /// This makes the initial reading reliable — the device may not emit report 0x54
-    /// spontaneously until polled.  Safe to call from a timer thread.
-    /// </summary>
-    private void TryPollBattery(HidStream stream)
-    {
-        try
-        {
-            int len = Math.Max(8, stream.Device.GetMaxFeatureReportLength());
-            var buf = new byte[len];
-            buf[0] = BatteryReportId;
-            stream.GetFeature(buf);
-            int? level = ParseBattery(buf);
-            if (level is > 0)
-            {
-                Debug.WriteLine($"[HidReader] TryPollBattery: {level}%");
-                BatteryLevelReceived?.Invoke(level.Value);
-            }
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"[HidReader] TryPollBattery failed: {ex.Message}");
-        }
     }
 }

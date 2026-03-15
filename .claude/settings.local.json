@@ -3,7 +3,11 @@
     "allow": [
       "Bash(ls -lh \"/d/OneDrive/Coding Projects/BatterMouse/BatterMouse/\"*.cs)",
       "Bash(dotnet build:*)",
-      "Bash(dotnet test:*)"
+      "Bash(dotnet test:*)",
+      "WebFetch(domain:launcher.keychron.com)",
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "Bash(curl -si \"https://launcher.keychron.com/\")"
     ]
   }
 }
