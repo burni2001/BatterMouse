@@ -84,6 +84,7 @@ internal sealed class AppContext : ApplicationContext
             _lastLevel = cached.Value;
             _batteryLabel.Text = $"Battery: {cached.Value}%";
             SetBatteryIcon(cached.Value);
+            _trayIcon.Text = $"BatterMouse ({cached.Value}%)";
         }
 
         // Capture UI SynchronizationContext for thread-safe updates when handle not yet created
@@ -217,6 +218,8 @@ internal sealed class AppContext : ApplicationContext
         _trayIcon.Icon = newIcon;
         _batteryIcon?.Dispose();
         _batteryIcon = newIcon;
+        if (_lastLevel >= 0)
+            _trayIcon.Text = $"BatterMouse ({_lastLevel}%)";
     }
 
     private void SetBatteryIcon(int level)
