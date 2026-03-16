@@ -99,7 +99,7 @@ internal sealed class AppContext : ApplicationContext
             Dispatch(() =>
             {
                 _lastLevel = level;
-                _batteryLabel.Text = _isCharging ? $"Battery: {level}% ⚡" : $"Battery: {level}%";
+                _batteryLabel.Text = _isCharging ? $"Battery: {level}% (charging)" : $"Battery: {level}%";
                 RefreshTrayIcon();
             });
         };
@@ -112,7 +112,7 @@ internal sealed class AppContext : ApplicationContext
             {
                 _isCharging = isCharging;
                 if (_lastLevel >= 0)
-                    _batteryLabel.Text = _isCharging ? $"Battery: {_lastLevel}% ⚡" : $"Battery: {_lastLevel}%";
+                    _batteryLabel.Text = _isCharging ? $"Battery: {_lastLevel}% (charging)" : $"Battery: {_lastLevel}%";
                 HidReader.Log($"[AppContext] Charging {(isCharging ? "started" : "stopped")}");
                 RefreshTrayIcon();
             });
