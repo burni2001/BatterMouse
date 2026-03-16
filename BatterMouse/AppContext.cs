@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Drawing;
+using System.Threading;
 using System.Windows.Forms;
 
 namespace BatterMouse;
@@ -34,6 +35,16 @@ internal sealed class AppContext : ApplicationContext
 
     // Current dynamically-generated battery icon (disposed when replaced)
     private Icon? _batteryIcon;
+
+    // Charging + last-level state — updated on UI thread only
+    private bool _isCharging;
+    private int  _lastLevel = -1;
+
+    // Watchdog: if no charging report arrives for this long, assume cable was unplugged.
+    // The device sends periodic STATUS reports every ~3-5 s while charging; when unplugged
+    // it goes silent with no STATUS=0x00 or device-hello to signal the transition.
+    private const int ChargingTimeoutMs = 15_000;
+    private readonly System.Threading.Timer? _chargingWatchdog;
 
     public AppContext()
     {
@@ -70,6 +81,7 @@ internal sealed class AppContext : ApplicationContext
         int? cached = HidReader.LoadLastLevel();
         if (cached.HasValue)
         {
+            _lastLevel = cached.Value;
             _batteryLabel.Text = $"Battery: {cached.Value}%";
             SetBatteryIcon(cached.Value);
         }
@@ -77,19 +89,77 @@ internal sealed class AppContext : ApplicationContext
         // Capture UI SynchronizationContext for thread-safe updates when handle not yet created
         var uiContext = SynchronizationContext.Current;
 
-        // Wire HID event to update battery label and tooltip on the UI thread
+        void Dispatch(Action action)
+        {
+            if (_trayIcon.ContextMenuStrip?.IsHandleCreated == true)
+                _trayIcon.ContextMenuStrip.BeginInvoke(action);
+            else
+                uiContext?.Post(_ => action(), null);
+        }
+
+        void ResetCharging()
+        {
+            _isCharging = false;
+            if (_lastLevel >= 0)
+                _batteryLabel.Text = $"Battery: {_lastLevel}%";
+            RefreshTrayIcon();
+        }
+
+        // Watchdog fires on the thread-pool after ChargingTimeoutMs of silence.
+        _chargingWatchdog = new System.Threading.Timer(_ =>
+        {
+            HidReader.Log($"[AppContext] Charging watchdog expired ({ChargingTimeoutMs} ms) — resetting charging state");
+            Dispatch(ResetCharging);
+        }, null, Timeout.Infinite, Timeout.Infinite);
+
+        // Wire HID event to update battery label and tray icon on the UI thread
         _hidReader.BatteryLevelReceived += level =>
         {
-            void Update()
+            Dispatch(() =>
             {
-                _batteryLabel.Text = $"Battery: {level}%";
-                SetBatteryIcon(level);
-            }
+                _lastLevel = level;
+                _batteryLabel.Text = _isCharging ? $"Battery: {level}% ⚡" : $"Battery: {level}%";
+                RefreshTrayIcon();
+            });
+        };
 
-            if (_trayIcon.ContextMenuStrip?.IsHandleCreated == true)
-                _trayIcon.ContextMenuStrip.BeginInvoke(Update);
-            else
-                uiContext?.Post(_ => Update(), null);
+        // Wire charging status changes to update the tray icon.
+        // When charging=true, arm the watchdog; when false, disarm it.
+        // The device sends a fresh STATUS report every ~3-5 s while the cable is plugged in.
+        // When the cable is unplugged the reports simply stop, so the watchdog is the only
+        // reliable way to detect the transition back to wireless.
+        _hidReader.ChargingStatusChanged += isCharging =>
+        {
+            Dispatch(() =>
+            {
+                _isCharging = isCharging;
+                if (_lastLevel >= 0)
+                    _batteryLabel.Text = _isCharging ? $"Battery: {_lastLevel}% ⚡" : $"Battery: {_lastLevel}%";
+                RefreshTrayIcon();
+
+                if (isCharging)
+                {
+                    HidReader.Log("[AppContext] Charging started — watchdog armed");
+                    _chargingWatchdog!.Change(ChargingTimeoutMs, System.Threading.Timeout.Infinite);
+                }
+                else
+                {
+                    HidReader.Log("[AppContext] Charging stopped (STATUS=0x00) — watchdog disarmed");
+                    _chargingWatchdog!.Change(System.Threading.Timeout.Infinite, System.Threading.Timeout.Infinite);
+                }
+            });
+        };
+
+        // Immediate reset if a wireless hello arrives (cable unplugged → wireless reconnect).
+        // Not guaranteed to fire on all firmware versions, but disarms the watchdog early when it does.
+        _hidReader.WirelessLinkEstablished += () =>
+        {
+            Dispatch(() =>
+            {
+                HidReader.Log("[AppContext] Wireless hello — resetting charging state");
+                _chargingWatchdog!.Change(System.Threading.Timeout.Infinite, System.Threading.Timeout.Infinite);
+                ResetCharging();
+            });
         };
     }
 
@@ -141,12 +211,52 @@ internal sealed class AppContext : ApplicationContext
         return menu;
     }
 
+    private void RefreshTrayIcon()
+    {
+        var newIcon = _isCharging ? CreateChargingIcon() : CreateBatteryIcon(_lastLevel);
+        _trayIcon.Icon = newIcon;
+        _batteryIcon?.Dispose();
+        _batteryIcon = newIcon;
+    }
+
     private void SetBatteryIcon(int level)
     {
         var newIcon = CreateBatteryIcon(level);
         _trayIcon.Icon = newIcon;
         _batteryIcon?.Dispose();
         _batteryIcon = newIcon;
+    }
+
+    /// <summary>
+    /// Renders a green lightning bolt icon used when the mouse is charging.
+    /// </summary>
+    private static Icon CreateChargingIcon()
+    {
+        const int size = 32;
+        using var bmp = new Bitmap(size, size, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+        using var g = Graphics.FromImage(bmp);
+        g.Clear(Color.Transparent);
+        g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+
+        // Classic lightning bolt polygon (top-right → middle-right → far-right →
+        // bottom-left → middle-left → far-left → back)
+        PointF[] bolt =
+        [
+            new(20f,  2f),
+            new(20f, 14f),
+            new(29f, 14f),
+            new(12f, 30f),
+            new(12f, 18f),
+            new( 3f, 18f),
+        ];
+
+        using var brush = new SolidBrush(Color.LimeGreen);
+        g.FillPolygon(brush, bolt);
+
+        var hIcon = bmp.GetHicon();
+        var icon = (Icon)Icon.FromHandle(hIcon).Clone();
+        NativeMethods.DestroyIcon(hIcon);
+        return icon;
     }
 
     private static Icon CreateBatteryIcon(int level)
@@ -195,6 +305,7 @@ internal sealed class AppContext : ApplicationContext
     protected override void ExitThreadCore()
     {
         _hidReader.Stop();
+        _chargingWatchdog?.Dispose();
         _trayIcon.Visible = false;   // prevents ghost tray icon
         ToastHelper.Cleanup();       // ToastNotificationManagerCompat.Uninstall()
         _batteryIcon?.Dispose();

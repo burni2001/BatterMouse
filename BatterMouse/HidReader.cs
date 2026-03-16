@@ -31,10 +31,22 @@ public class HidReader
     public const int  VID              = 0x3434;
     public const int  PID_WIRELESS     = 0xD030;
     public const int  PID_WIRED        = 0xD037;  // unconfirmed — enumerate as fallback
-    public const byte BatteryReportId  = 0x54;    // report ID confirmed empirically 2026-03-13
-    public const int  BatteryByteOffset = 5;      // offset of battery% within a 54-E2 report
+    public const byte BatteryReportId      = 0x54;  // report ID confirmed empirically 2026-03-13
+    public const int  BatteryByteOffset    = 5;    // offset of battery% within a 54-E2 report
+    public const int  ChargingStatusOffset = 6;    // STATUS byte in 54-E2 report — non-zero = charging (empirical assumption; log output confirms value)
 
-    public event Action<int>? BatteryLevelReceived;
+    public event Action<int>?  BatteryLevelReceived;
+    /// <summary>
+    /// Fired whenever a 54-E2 report is received.  <c>true</c> = charging (r[6] != 0);
+    /// <c>false</c> = on battery.  Raw STATUS byte is logged for empirical verification.
+    /// </summary>
+    public event Action<bool>? ChargingStatusChanged;
+
+    /// <summary>
+    /// Fired when the wireless link is established (0xB2 hello on the FF60 stream).
+    /// Used to reset charging state when the mouse switches from wired to wireless mode.
+    /// </summary>
+    public event Action? WirelessLinkEstablished;
 
     private CancellationTokenSource? _cts;
     private Thread? _thread;
@@ -69,7 +81,7 @@ public class HidReader
         catch { return null; }
     }
 
-    private static void Log(string msg)
+    internal static void Log(string msg)
     {
         string line = $"{DateTime.Now:HH:mm:ss.fff} {msg}";
         Debug.WriteLine($"[HidReader] {line}");
@@ -107,6 +119,20 @@ public class HidReader
 
         // Legacy spontaneous format: battery at r[5]
         return report[BatteryByteOffset];
+    }
+
+    /// <summary>
+    /// Returns <c>true</c> if the 54-E2 STATUS byte (r[6]) indicates the mouse is charging.
+    /// Returns <c>false</c> if discharging, <c>null</c> if the report is not a 54-E2 or too short.
+    ///
+    /// Assumption: r[6] != 0 means charging.  Log output ("STATUS=0x??") should be checked
+    /// against hardware to confirm the exact encoding (e.g. 0x01 = charging, 0x02 = full).
+    /// </summary>
+    public static bool? ParseChargingStatus(byte[] report)
+    {
+        if (report.Length <= ChargingStatusOffset) return null;
+        if (report[0] != BatteryReportId || report[1] != 0xE2) return null;
+        return report[ChargingStatusOffset] != 0;
     }
 
     /// <summary>
@@ -182,8 +208,12 @@ public class HidReader
                             byte[] report = stream.Read();
 
                             // 0xB2 = device hello: wireless link established.
+                            // Fires after the mouse switches from wired-charging to wireless.
                             if (report.Length >= 2 && report[1] == 0xB2)
-                                Log("Device hello received");
+                            {
+                                Log("Device hello received (wireless link established)");
+                                WirelessLinkEstablished?.Invoke();
+                            }
                         }
                     }
                     catch (IOException ex)
@@ -392,12 +422,14 @@ public class HidReader
                                 if (r.Length >= 7 && r[0] == BatteryReportId && r[1] == 0xE2)
                                 {
                                     int batt = r[5];
-                                    Log($"[BatteryTLC] Battery {batt}%");
+                                    bool isCharging = r[ChargingStatusOffset] != 0;
+                                    Log($"[BatteryTLC] Battery {batt}%, STATUS=0x{r[ChargingStatusOffset]:X2} (charging={isCharging})");
                                     if (batt > 0 && batt <= 100)
                                     {
                                         SaveLastLevel(batt);
                                         BatteryLevelReceived?.Invoke(batt);
                                     }
+                                    ChargingStatusChanged?.Invoke(isCharging);
                                 }
                             }
                         }
