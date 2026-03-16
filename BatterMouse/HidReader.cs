@@ -28,9 +28,15 @@ namespace BatterMouse;
 /// </summary>
 public class HidReader
 {
-    public const int  VID              = 0x3434;
-    public const int  PID_WIRELESS     = 0xD030;
-    public const int  PID_WIRED        = 0xD037;  // unconfirmed — enumerate as fallback
+    public const int  VID                = 0x3434;
+    public const int  PID_WIRELESS      = 0xD030;
+    public const int  PID_WIRED         = 0xD037;  // unconfirmed — enumerate as fallback
+    /// <summary>
+    /// Enumerates as a USB HID composite device when the USB-C charging cable is plugged
+    /// into the mouse.  Disappears when the cable is unplugged.  Confirmed empirically
+    /// 2026-03-16 via DeviceList logging: 20 devices (D03F present) → 16 (D03F absent).
+    /// </summary>
+    public const int  PID_WIRED_CHARGING = 0xD03F;
     public const byte BatteryReportId      = 0x54;  // report ID confirmed empirically 2026-03-13
     public const int  BatteryByteOffset    = 5;    // offset of battery% within a 54-E2 report
     public const int  ChargingStatusOffset = 6;    // STATUS byte in 54-E2 report — non-zero = charging (empirical assumption; log output confirms value)
@@ -50,6 +56,7 @@ public class HidReader
 
     private CancellationTokenSource? _cts;
     private Thread? _thread;
+    private bool _lastWiredState = false;
 
     private static readonly string LogPath =
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
@@ -165,10 +172,13 @@ public class HidReader
         using var deviceChanged = new SemaphoreSlim(0, 1);
         EventHandler<DeviceListChangedEventArgs> onChanged = (_, _) =>
         {
+            CheckAndFireWiredState();
             if (deviceChanged.CurrentCount == 0)
                 deviceChanged.Release();
         };
         DeviceList.Local.Changed += onChanged;
+        // Fire immediately in case the cable is already plugged in when the app starts.
+        CheckAndFireWiredState();
 
         try
         {
@@ -218,7 +228,7 @@ public class HidReader
                     }
                     catch (IOException ex)
                     {
-                        Log($"IOException (device disconnect?): {ex.Message}");
+                        Log($"[FF60] IOException — {ex.Message}");
                         streamCts.Cancel();
                         WaitForDeviceOrTimeout(deviceChanged, 5000, token);
                     }
@@ -422,14 +432,14 @@ public class HidReader
                                 if (r.Length >= 7 && r[0] == BatteryReportId && r[1] == 0xE2)
                                 {
                                     int batt = r[5];
-                                    bool isCharging = r[ChargingStatusOffset] != 0;
-                                    Log($"[BatteryTLC] Battery {batt}%, STATUS=0x{r[ChargingStatusOffset]:X2} (charging={isCharging})");
+                                    // STATUS byte (r[6]) is always 0x04 regardless of charging state —
+                                    // charging is detected via PID=0xD03F device list events instead.
+                                    Log($"[BatteryTLC] Battery {batt}%, STATUS=0x{r[ChargingStatusOffset]:X2}");
                                     if (batt > 0 && batt <= 100)
                                     {
                                         SaveLastLevel(batt);
                                         BatteryLevelReceived?.Invoke(batt);
                                     }
-                                    ChargingStatusChanged?.Invoke(isCharging);
                                 }
                             }
                         }
@@ -442,6 +452,20 @@ public class HidReader
                 }.Start();
             }
         }
+    }
+
+    /// <summary>
+    /// Checks whether a PID=0xD03F device (USB-C cable plugged into mouse) is present
+    /// and fires <see cref="ChargingStatusChanged"/> if the state has changed.
+    /// Called on every DeviceList.Changed event and once at startup.
+    /// </summary>
+    private void CheckAndFireWiredState()
+    {
+        bool wired = DeviceList.Local.GetHidDevices(VID, PID_WIRED_CHARGING).Any();
+        if (wired == _lastWiredState) return;
+        _lastWiredState = wired;
+        Log($"[Charging] PID=0xD03F {(wired ? "appeared" : "disappeared")} — charging={wired}");
+        ChargingStatusChanged?.Invoke(wired);
     }
 
     private static string ExtractInstanceId(string path)

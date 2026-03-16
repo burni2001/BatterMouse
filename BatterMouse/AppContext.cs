@@ -40,11 +40,6 @@ internal sealed class AppContext : ApplicationContext
     private bool _isCharging;
     private int  _lastLevel = -1;
 
-    // Watchdog: if no charging report arrives for this long, assume cable was unplugged.
-    // The device sends periodic STATUS reports every ~3-5 s while charging; when unplugged
-    // it goes silent with no STATUS=0x00 or device-hello to signal the transition.
-    private const int ChargingTimeoutMs = 15_000;
-    private readonly System.Threading.Timer? _chargingWatchdog;
 
     public AppContext()
     {
@@ -98,21 +93,6 @@ internal sealed class AppContext : ApplicationContext
                 uiContext?.Post(_ => action(), null);
         }
 
-        void ResetCharging()
-        {
-            _isCharging = false;
-            if (_lastLevel >= 0)
-                _batteryLabel.Text = $"Battery: {_lastLevel}%";
-            RefreshTrayIcon();
-        }
-
-        // Watchdog fires on the thread-pool after ChargingTimeoutMs of silence.
-        _chargingWatchdog = new System.Threading.Timer(_ =>
-        {
-            HidReader.Log($"[AppContext] Charging watchdog expired ({ChargingTimeoutMs} ms) — resetting charging state");
-            Dispatch(ResetCharging);
-        }, null, Timeout.Infinite, Timeout.Infinite);
-
         // Wire HID event to update battery label and tray icon on the UI thread
         _hidReader.BatteryLevelReceived += level =>
         {
@@ -124,11 +104,8 @@ internal sealed class AppContext : ApplicationContext
             });
         };
 
-        // Wire charging status changes to update the tray icon.
-        // When charging=true, arm the watchdog; when false, disarm it.
-        // The device sends a fresh STATUS report every ~3-5 s while the cable is plugged in.
-        // When the cable is unplugged the reports simply stop, so the watchdog is the only
-        // reliable way to detect the transition back to wireless.
+        // Charging state is driven by PID=0xD03F device presence (USB-C cable plugged in),
+        // detected via DeviceList.Changed in HidReader.  No watchdog or STATUS-byte heuristics needed.
         _hidReader.ChargingStatusChanged += isCharging =>
         {
             Dispatch(() =>
@@ -136,30 +113,8 @@ internal sealed class AppContext : ApplicationContext
                 _isCharging = isCharging;
                 if (_lastLevel >= 0)
                     _batteryLabel.Text = _isCharging ? $"Battery: {_lastLevel}% ⚡" : $"Battery: {_lastLevel}%";
+                HidReader.Log($"[AppContext] Charging {(isCharging ? "started" : "stopped")}");
                 RefreshTrayIcon();
-
-                if (isCharging)
-                {
-                    HidReader.Log("[AppContext] Charging started — watchdog armed");
-                    _chargingWatchdog!.Change(ChargingTimeoutMs, System.Threading.Timeout.Infinite);
-                }
-                else
-                {
-                    HidReader.Log("[AppContext] Charging stopped (STATUS=0x00) — watchdog disarmed");
-                    _chargingWatchdog!.Change(System.Threading.Timeout.Infinite, System.Threading.Timeout.Infinite);
-                }
-            });
-        };
-
-        // Immediate reset if a wireless hello arrives (cable unplugged → wireless reconnect).
-        // Not guaranteed to fire on all firmware versions, but disarms the watchdog early when it does.
-        _hidReader.WirelessLinkEstablished += () =>
-        {
-            Dispatch(() =>
-            {
-                HidReader.Log("[AppContext] Wireless hello — resetting charging state");
-                _chargingWatchdog!.Change(System.Threading.Timeout.Infinite, System.Threading.Timeout.Infinite);
-                ResetCharging();
             });
         };
     }
@@ -310,7 +265,6 @@ internal sealed class AppContext : ApplicationContext
     protected override void ExitThreadCore()
     {
         _hidReader.Stop();
-        _chargingWatchdog?.Dispose();
         _trayIcon.Visible = false;   // prevents ghost tray icon
         ToastHelper.Cleanup();       // ToastNotificationManagerCompat.Uninstall()
         _batteryIcon?.Dispose();
