@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Drawing;
 using System.Windows.Forms;
 
@@ -31,6 +32,9 @@ internal sealed class AppContext : ApplicationContext
     private ToolStripMenuItem _batteryLabel = null!;
     private ToolStripMenuItem _startupItem = null!;
 
+    // Current dynamically-generated battery icon (disposed when replaced)
+    private Icon? _batteryIcon;
+
     public AppContext()
     {
         // Register auto-start on every run (idempotent — re-writing the same value is harmless)
@@ -60,12 +64,15 @@ internal sealed class AppContext : ApplicationContext
 
         ToastHelper.Register(_trayIcon);
 
+        _trayIcon.MouseDoubleClick += (_, _) => LaunchKeychronLauncher();
+
         // Restore last known battery level immediately (before first HID report arrives)
         int? cached = HidReader.LoadLastLevel();
         if (cached.HasValue)
         {
             _batteryLabel.Text = $"Battery: {cached.Value}%";
             _trayIcon.Text = $"{cached.Value}%";
+            SetBatteryIcon(cached.Value);
         }
 
         // Capture UI SynchronizationContext for thread-safe updates when handle not yet created
@@ -78,6 +85,7 @@ internal sealed class AppContext : ApplicationContext
             {
                 _batteryLabel.Text = $"Battery: {level}%";
                 _trayIcon.Text = $"{level}%";
+                SetBatteryIcon(level);
             }
 
             if (_trayIcon.ContextMenuStrip?.IsHandleCreated == true)
@@ -135,6 +143,50 @@ internal sealed class AppContext : ApplicationContext
         return menu;
     }
 
+    private void SetBatteryIcon(int level)
+    {
+        var newIcon = CreateBatteryIcon(level);
+        _trayIcon.Icon = newIcon;
+        _batteryIcon?.Dispose();
+        _batteryIcon = newIcon;
+    }
+
+    private static Icon CreateBatteryIcon(int level)
+    {
+        const int size = 32;
+        using var bmp = new Bitmap(size, size, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+        using var g = Graphics.FromImage(bmp);
+        g.Clear(Color.Transparent);
+
+        Color textColor = level >= 70 ? Color.LimeGreen
+                        : level >= 40 ? Color.Gold
+                        :               Color.OrangeRed;
+
+        string text = level.ToString();
+        int fontSize = text.Length >= 3 ? 14 : text.Length == 2 ? 24 : 30;
+        using var font = new Font("Arial", fontSize, FontStyle.Bold, GraphicsUnit.Pixel);
+
+        TextRenderer.DrawText(g, text, font, new Rectangle(0, 0, size, size), textColor,
+            TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter |
+            TextFormatFlags.SingleLine | TextFormatFlags.NoPadding);
+
+        var hIcon = bmp.GetHicon();
+        var icon = (Icon)Icon.FromHandle(hIcon).Clone();
+        NativeMethods.DestroyIcon(hIcon);
+        return icon;
+    }
+
+    private static void LaunchKeychronLauncher()
+    {
+        Process.Start(new ProcessStartInfo
+        {
+            FileName         = @"C:\Program Files\Google\Chrome\Application\chrome_proxy.exe",
+            Arguments        = "--profile-directory=Default --app-id=cbfedpnlilnlbdcikokpfoibmlbghlhg",
+            WorkingDirectory = @"C:\Program Files\Google\Chrome\Application",
+            UseShellExecute  = true
+        });
+    }
+
     private void ToggleStartup(object? sender, EventArgs e)
     {
         bool current = StartupManager.IsStartupEnabled();
@@ -147,6 +199,7 @@ internal sealed class AppContext : ApplicationContext
         _hidReader.Stop();
         _trayIcon.Visible = false;   // prevents ghost tray icon
         ToastHelper.Cleanup();       // ToastNotificationManagerCompat.Uninstall()
+        _batteryIcon?.Dispose();
         base.ExitThreadCore();
     }
 

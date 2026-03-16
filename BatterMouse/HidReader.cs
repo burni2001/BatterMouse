@@ -171,7 +171,7 @@ public class HidReader
                     // Battery reports arrive on mi_01 (Battery TLC), not on mi_03 (FF60).
                     // Open the Battery TLC now, tied to this stream's lifetime.
                     using var streamCts = CancellationTokenSource.CreateLinkedTokenSource(token);
-                    StartBatteryTlcListener(device, streamCts.Token);
+                    StartBatteryTlcListener(streamCts.Token);
 
                     stream.ReadTimeout = Timeout.Infinite;
 
@@ -352,19 +352,19 @@ public class HidReader
     /// and whenever the battery drops by 1%.  No query command is needed.
     /// The thread runs until <paramref name="token"/> is cancelled.
     /// </summary>
-    private void StartBatteryTlcListener(HidDevice primaryDevice, CancellationToken token)
+    private void StartBatteryTlcListener(CancellationToken token)
     {
-        string? primaryUsbParent = GetUsbCompositeParentId(primaryDevice.DevicePath);
-
+        // Open ALL Battery System TLCs across both dongles.
+        // We rely on the report type to identify the mouse:
+        //   54-E2 (r[1]==0xE2, r[5]=batt%) — MOUSE battery (accept)
+        //   54-E4 (r[1]==0xE4)              — KEYBOARD battery (ignore)
+        // This avoids a fragile USB-parent match that can pick the wrong dongle
+        // when instance IDs change between sessions.
         foreach (var pid in new[] { PID_WIRELESS, PID_WIRED })
         {
             foreach (var dev in DeviceList.Local.GetHidDevices(VID, pid))
             {
                 if (!HasUsagePage(dev, BatterySystemUsagePage)) continue;
-
-                // Only open the Battery TLC on the same physical dongle as the FF60 device.
-                string? devParent = GetUsbCompositeParentId(dev.DevicePath);
-                if (devParent != primaryUsbParent) continue;
 
                 var capture = dev;
                 new Thread(() =>
@@ -408,8 +408,6 @@ public class HidReader
                     IsBackground = true,
                     Name = "BatteryTLC"
                 }.Start();
-
-                return; // one Battery TLC per dongle is sufficient
             }
         }
     }

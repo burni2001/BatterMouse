@@ -7,6 +7,9 @@ internal static class NativeMethods
     private const int DWMWA_WINDOW_CORNER_PREFERENCE = 33;
     private const int DWMWCP_ROUND = 2;
 
+    [DllImport("user32.dll")]
+    internal static extern bool DestroyIcon(IntPtr hIcon);
+
     [DllImport("dwmapi.dll")]
     private static extern int DwmSetWindowAttribute(
         IntPtr hwnd, int dwAttribute, ref int pvAttribute, int cbAttribute);
