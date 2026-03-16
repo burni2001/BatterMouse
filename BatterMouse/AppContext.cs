@@ -71,7 +71,6 @@ internal sealed class AppContext : ApplicationContext
         if (cached.HasValue)
         {
             _batteryLabel.Text = $"Battery: {cached.Value}%";
-            _trayIcon.Text = $"{cached.Value}%";
             SetBatteryIcon(cached.Value);
         }
 
@@ -84,7 +83,6 @@ internal sealed class AppContext : ApplicationContext
             void Update()
             {
                 _batteryLabel.Text = $"Battery: {level}%";
-                _trayIcon.Text = $"{level}%";
                 SetBatteryIcon(level);
             }
 
