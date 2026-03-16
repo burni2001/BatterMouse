@@ -17,7 +17,15 @@ internal sealed class Win11ContextMenuStrip : ContextMenuStrip
     {
         Renderer = new Win11MenuRenderer();
         Font = CreateFont();
-        Padding = new Padding(0, 4, 0, 4);
+        Padding = new Padding(0, 8, 0, 8);
+        ItemAdded += OnItemAdded;
+    }
+
+    private static void OnItemAdded(object? sender, ToolStripItemEventArgs e)
+    {
+        if (e.Item is null) return;
+        var m = e.Item.Margin;
+        e.Item.Margin = new Padding(8, m.Top, 8, m.Bottom);
     }
 
     protected override void OnHandleCreated(EventArgs e)
@@ -132,7 +140,7 @@ internal sealed class Win11MenuRenderer : ToolStripRenderer
     {
         if (e.Item is not ToolStripMenuItem { Checked: true }) return;
 
-        using var brush = new SolidBrush(Check);
+        using var brush = new SolidBrush(Text);
         using var sf = new StringFormat
         {
             Alignment = StringAlignment.Center,

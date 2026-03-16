@@ -1,0 +1,2 @@
+D:\OneDrive\Coding Projects\BatterMouse\BatterMouse\bin\Release\net8.0-windows\win-x64\BatterMouse.pdb
+D:\OneDrive\Coding Projects\BatterMouse\BatterMouse\bin\Release\net8.0-windows\win-x64\BatterMouse.exe
