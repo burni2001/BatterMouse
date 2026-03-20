@@ -49,20 +49,19 @@ internal sealed class Win11ContextMenuStrip : ContextMenuStrip
 internal sealed class Win11MenuRenderer : ToolStripRenderer
 {
     // Light theme
-    private static readonly Color LightBg       = Color.FromArgb(249, 249, 249);
-    private static readonly Color LightHover     = Color.FromArgb(218, 218, 218);
-    private static readonly Color LightText      = Color.FromArgb(0,   0,   0  );
-    private static readonly Color LightDisabled  = Color.FromArgb(160, 160, 160);
-    private static readonly Color LightSeparator = Color.FromArgb(217, 217, 217);
-    private static readonly Color LightBorder    = Color.FromArgb(200, 200, 200);
+    private static readonly Color LightBg        = Color.FromArgb(243, 243, 243);
+    private static readonly Color LightHover      = Color.FromArgb(218, 218, 218);
+    private static readonly Color LightText       = Color.FromArgb(0,   0,   0  );
+    private static readonly Color LightDisabled   = Color.FromArgb(160, 160, 160);
+    private static readonly Color LightSeparator  = Color.FromArgb(210, 210, 210);
+    private static readonly Color LightBorder     = Color.FromArgb(210, 210, 210);
 
-    // Dark theme
-    private static readonly Color DarkBg        = Color.FromArgb(44,  44,  44 );
-    private static readonly Color DarkHover      = Color.FromArgb(65,  65,  65 );
-    private static readonly Color DarkText       = Color.FromArgb(255, 255, 255);
-    private static readonly Color DarkDisabled   = Color.FromArgb(130, 130, 130);
-    private static readonly Color DarkSeparator  = Color.FromArgb(63,  63,  63 );
-    private static readonly Color DarkBorder     = Color.FromArgb(63,  63,  63 );
+    // Dark theme — matches native Win11 dark popup menu
+    private static readonly Color DarkBg         = Color.FromArgb(32,  32,  32 );
+    private static readonly Color DarkHover       = Color.FromArgb(55,  55,  55 );
+    private static readonly Color DarkText        = Color.FromArgb(255, 255, 255);
+    private static readonly Color DarkDisabled    = Color.FromArgb(130, 130, 130);
+    private static readonly Color DarkSeparator   = Color.FromArgb(55,  55,  55 );
 
     private readonly bool _dark;
 
@@ -71,7 +70,8 @@ internal sealed class Win11MenuRenderer : ToolStripRenderer
     private Color Text      => _dark ? DarkText      : LightText;
     private Color Disabled  => _dark ? DarkDisabled  : LightDisabled;
     private Color Separator => _dark ? DarkSeparator : LightSeparator;
-    private Color Border    => _dark ? DarkBorder    : LightBorder;
+    private Color Border    => LightBorder;  // only used in light mode; dark relies on DWM shadow
+
     public Win11MenuRenderer()
     {
         _dark = IsSystemDarkMode();
@@ -92,12 +92,16 @@ internal sealed class Win11MenuRenderer : ToolStripRenderer
     protected override void OnRenderToolStripBackground(ToolStripRenderEventArgs e)
         => e.Graphics.Clear(Bg);
 
-    /// <summary>1 px flat border around the menu in the theme's border color.</summary>
+    /// <summary>1 px border in light mode; dark mode relies on DWM shadow + rounded corners.</summary>
     protected override void OnRenderToolStripBorder(ToolStripRenderEventArgs e)
     {
+        if (_dark) return;
         using var pen = new Pen(Border);
         e.Graphics.DrawRectangle(pen, 0, 0, e.ToolStrip.Width - 1, e.ToolStrip.Height - 1);
     }
+
+    /// <summary>Suppressed — checkmark is rendered inline by <see cref="OnRenderItemText"/>.</summary>
+    protected override void OnRenderItemCheck(ToolStripItemImageRenderEventArgs e) { }
 
     /// <summary>Image-margin gutter — intentionally empty so the menu background shows through.</summary>
     protected override void OnRenderImageMargin(ToolStripRenderEventArgs e) { }
