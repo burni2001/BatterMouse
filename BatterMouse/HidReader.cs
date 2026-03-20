@@ -57,6 +57,8 @@ public class HidReader
     private CancellationTokenSource? _cts;
     private Thread? _thread;
     private bool _lastWiredState = false;
+    private CancellationTokenSource? _chargingTlcCts;
+    private CancellationToken _readLoopToken;
 
     private static readonly string LogPath =
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
@@ -169,6 +171,7 @@ public class HidReader
 
     private void ReadLoop(CancellationToken token)
     {
+        _readLoopToken = token;
         using var deviceChanged = new SemaphoreSlim(0, 1);
         EventHandler<DeviceListChangedEventArgs> onChanged = (_, _) =>
         {
@@ -465,7 +468,68 @@ public class HidReader
         if (wired == _lastWiredState) return;
         _lastWiredState = wired;
         Log($"[Charging] PID=0xD03F {(wired ? "appeared" : "disappeared")} — charging={wired}");
+
+        _chargingTlcCts?.Cancel();
+        _chargingTlcCts?.Dispose();
+        _chargingTlcCts = null;
+
+        if (wired)
+        {
+            _chargingTlcCts = CancellationTokenSource.CreateLinkedTokenSource(_readLoopToken);
+            StartChargingBatteryTlcListener(_chargingTlcCts.Token);
+        }
+
         ChargingStatusChanged?.Invoke(wired);
+    }
+
+    /// <summary>
+    /// Opens Battery System TLC streams on the PID_WIRED_CHARGING device so that battery
+    /// level reports received while the USB-C cable is plugged in are forwarded to
+    /// <see cref="BatteryLevelReceived"/>.  Called when the charging device appears.
+    /// </summary>
+    private void StartChargingBatteryTlcListener(CancellationToken token)
+    {
+        foreach (var dev in DeviceList.Local.GetHidDevices(VID, PID_WIRED_CHARGING))
+        {
+            if (!HasUsagePage(dev, BatterySystemUsagePage)) continue;
+
+            var capture = dev;
+            new Thread(() =>
+            {
+                if (!capture.TryOpen(out HidStream? s))
+                {
+                    Log($"[ChargingTLC] TryOpen FAILED: {capture.DevicePath}");
+                    return;
+                }
+                using (s)
+                {
+                    s.ReadTimeout = Timeout.Infinite;
+                    Log($"[ChargingTLC] Opened: {capture.DevicePath}");
+                    try
+                    {
+                        while (!token.IsCancellationRequested)
+                        {
+                            byte[] r = s.Read();
+                            if (r.Length >= 7 && r[0] == BatteryReportId && r[1] == 0xE2)
+                            {
+                                int batt = r[5];
+                                Log($"[ChargingTLC] Battery {batt}%");
+                                if (batt > 0 && batt <= 100)
+                                {
+                                    SaveLastLevel(batt);
+                                    BatteryLevelReceived?.Invoke(batt);
+                                }
+                            }
+                        }
+                    }
+                    catch (IOException) { }
+                }
+            })
+            {
+                IsBackground = true,
+                Name = "ChargingBatteryTLC"
+            }.Start();
+        }
     }
 
     private static string ExtractInstanceId(string path)
