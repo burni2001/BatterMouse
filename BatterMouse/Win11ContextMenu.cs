@@ -18,6 +18,7 @@ internal sealed class Win11ContextMenuStrip : ContextMenuStrip
         Renderer = new Win11MenuRenderer();
         Font = CreateFont();
         Padding = new Padding(0, 8, 0, 8);
+        ShowImageMargin = false;
         ItemAdded += OnItemAdded;
     }
 
@@ -54,7 +55,6 @@ internal sealed class Win11MenuRenderer : ToolStripRenderer
     private static readonly Color LightDisabled  = Color.FromArgb(160, 160, 160);
     private static readonly Color LightSeparator = Color.FromArgb(217, 217, 217);
     private static readonly Color LightBorder    = Color.FromArgb(200, 200, 200);
-    private static readonly Color LightCheck     = Color.FromArgb(0,   103, 192);
 
     // Dark theme
     private static readonly Color DarkBg        = Color.FromArgb(44,  44,  44 );
@@ -63,7 +63,6 @@ internal sealed class Win11MenuRenderer : ToolStripRenderer
     private static readonly Color DarkDisabled   = Color.FromArgb(130, 130, 130);
     private static readonly Color DarkSeparator  = Color.FromArgb(63,  63,  63 );
     private static readonly Color DarkBorder     = Color.FromArgb(63,  63,  63 );
-    private static readonly Color DarkCheck      = Color.FromArgb(76,  194, 255);
 
     private readonly bool _dark;
 
@@ -73,8 +72,6 @@ internal sealed class Win11MenuRenderer : ToolStripRenderer
     private Color Disabled  => _dark ? DarkDisabled  : LightDisabled;
     private Color Separator => _dark ? DarkSeparator : LightSeparator;
     private Color Border    => _dark ? DarkBorder    : LightBorder;
-    private Color Check     => _dark ? DarkCheck     : LightCheck;
-
     public Win11MenuRenderer()
     {
         _dark = IsSystemDarkMode();
@@ -120,10 +117,22 @@ internal sealed class Win11MenuRenderer : ToolStripRenderer
         e.Graphics.SmoothingMode = prev;
     }
 
-    /// <summary>Text color: full opacity when enabled, muted when disabled.</summary>
+    /// <summary>Text color: full opacity when enabled, muted when disabled.
+    /// Checked items get an inline "✓ " prefix instead of a gutter checkmark.</summary>
     protected override void OnRenderItemText(ToolStripItemTextRenderEventArgs e)
     {
         e.TextColor = e.Item.Enabled ? Text : Disabled;
+
+        if (e.Item is ToolStripMenuItem { Checked: true })
+        {
+            var prev = e.Graphics.TextRenderingHint;
+            e.Graphics.TextRenderingHint = TextRenderingHint.AntiAlias;
+            TextRenderer.DrawText(e.Graphics, "✓  " + e.Text, e.TextFont,
+                e.TextRectangle, e.TextColor, e.TextFormat);
+            e.Graphics.TextRenderingHint = prev;
+            return;
+        }
+
         base.OnRenderItemText(e);
     }
 
@@ -133,24 +142,6 @@ internal sealed class Win11MenuRenderer : ToolStripRenderer
         int y = e.Item.Height / 2;
         using var pen = new Pen(Separator);
         e.Graphics.DrawLine(pen, 8, y, e.Item.Width - 8, y);
-    }
-
-    /// <summary>Check mark drawn as '✓' in the accent color inside the image rectangle.</summary>
-    protected override void OnRenderItemCheck(ToolStripItemImageRenderEventArgs e)
-    {
-        if (e.Item is not ToolStripMenuItem { Checked: true }) return;
-
-        using var brush = new SolidBrush(Text);
-        using var sf = new StringFormat
-        {
-            Alignment = StringAlignment.Center,
-            LineAlignment = StringAlignment.Center
-        };
-
-        var prev = e.Graphics.TextRenderingHint;
-        e.Graphics.TextRenderingHint = TextRenderingHint.AntiAlias;
-        e.Graphics.DrawString("✓", e.Item.Font, brush, e.ImageRectangle, sf);
-        e.Graphics.TextRenderingHint = prev;
     }
 
     private static GraphicsPath CreateRoundedRect(Rectangle r, int radius)

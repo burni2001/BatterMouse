@@ -8,7 +8,7 @@ namespace BatterMouse;
 /// </summary>
 public class BatteryMonitor
 {
-    private const int Threshold = 20;
+    private const int Threshold = 30;
 
     private readonly Action<int> _notifyCallback;
     private bool _notified = false;
