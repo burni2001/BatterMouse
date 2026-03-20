@@ -174,7 +174,7 @@ internal sealed class AppContext : ApplicationContext
         _batteryIcon?.Dispose();
         _batteryIcon = newIcon;
         if (_isCharging)
-            _trayIcon.Text = "BatterMouse (charging)";
+            _trayIcon.Text = _lastLevel >= 0 ? $"Charging ({_lastLevel}%)" : "Charging";
         else if (_lastLevel >= 0)
             _trayIcon.Text = $"BatterMouse ({_lastLevel}%)";
     }
