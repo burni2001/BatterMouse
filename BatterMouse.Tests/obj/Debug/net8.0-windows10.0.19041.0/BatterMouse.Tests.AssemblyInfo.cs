@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("BatterMouse.Tests")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+163c0f32de7942025759ed95efc652286cdb4162")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+133847700fa4846e3157c98564c7000595c24368")]
 [assembly: System.Reflection.AssemblyProductAttribute("BatterMouse.Tests")]
 [assembly: System.Reflection.AssemblyTitleAttribute("BatterMouse.Tests")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
