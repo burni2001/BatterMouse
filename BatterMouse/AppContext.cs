@@ -123,7 +123,7 @@ internal sealed class AppContext : ApplicationContext
     /// Builds the context menu with 4 items in the required order:
     ///   0 — Battery label (disabled, initial text "Battery: --")
     ///   1 — Separator
-    ///   2 — "Start with Windows" toggle (Checked = current registry state)
+    ///   2 — "Start with Windows" toggle (✓ prefix in Text = current registry state)
     ///   3 — "Exit"
     ///
     /// Exposed as internal so AppContextMenuTests can call it directly via InternalsVisibleTo.
@@ -138,11 +138,10 @@ internal sealed class AppContext : ApplicationContext
 
         menu.Items.Add(new ToolStripSeparator());
 
+        bool startupEnabled = StartupManager.IsStartupEnabled();
         var startupItem = new ToolStripMenuItem("Start with Windows")
         {
-            // Tag = "checked" drives the ✓ prefix via Win11MenuRenderer; Checked is never set
-            // so WinForms never renders its own checkmark glyph.
-            Tag = StartupManager.IsStartupEnabled() ? "checked" : null,
+            Checked      = startupEnabled,
             CheckOnClick = false
         };
         // Click handler is added by the instance method; static version doesn't add it
@@ -261,7 +260,7 @@ internal sealed class AppContext : ApplicationContext
     {
         bool current = StartupManager.IsStartupEnabled();
         StartupManager.SetStartup(!current);
-        _startupItem.Tag = !current ? "checked" : null;
+        _startupItem.Checked = !current;
     }
 
     protected override void ExitThreadCore()

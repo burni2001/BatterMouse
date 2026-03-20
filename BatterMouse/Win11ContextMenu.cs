@@ -1,7 +1,6 @@
 using System.ComponentModel;
 using System.Drawing;
 using System.Drawing.Drawing2D;
-using System.Drawing.Text;
 using System.Windows.Forms;
 using Microsoft.Win32;
 
@@ -13,12 +12,14 @@ namespace BatterMouse;
 /// </summary>
 internal sealed class Win11ContextMenuStrip : ContextMenuStrip
 {
+    private readonly bool _dark;
+
     public Win11ContextMenuStrip(IContainer container) : base(container)
     {
-        Renderer = new Win11MenuRenderer();
+        _dark = Win11MenuRenderer.IsSystemDarkMode();
+        Renderer = new Win11MenuRenderer(_dark);
         Font = CreateFont();
         Padding = new Padding(0, 8, 0, 8);
-        ShowImageMargin = false;
         ItemAdded += OnItemAdded;
     }
 
@@ -26,13 +27,21 @@ internal sealed class Win11ContextMenuStrip : ContextMenuStrip
     {
         if (e.Item is null) return;
         var m = e.Item.Margin;
-        e.Item.Margin = new Padding(8, m.Top, 8, m.Bottom);
+        e.Item.Margin = new Padding(4, m.Top, 8, m.Bottom);
     }
 
     protected override void OnHandleCreated(EventArgs e)
     {
         base.OnHandleCreated(e);
         NativeMethods.EnableRoundedCorners(Handle);
+    }
+
+    /// <summary>Suppress non-client border painting in dark mode; DWM shadow defines the edge.</summary>
+    protected override void WndProc(ref Message m)
+    {
+        const int WM_NCPAINT = 0x0085;
+        if (_dark && m.Msg == WM_NCPAINT) return;
+        base.WndProc(ref m);
     }
 
     private static Font CreateFont()
@@ -72,12 +81,9 @@ internal sealed class Win11MenuRenderer : ToolStripRenderer
     private Color Separator => _dark ? DarkSeparator : LightSeparator;
     private Color Border    => LightBorder;  // only used in light mode; dark relies on DWM shadow
 
-    public Win11MenuRenderer()
-    {
-        _dark = IsSystemDarkMode();
-    }
+    public Win11MenuRenderer(bool dark) { _dark = dark; }
 
-    private static bool IsSystemDarkMode()
+    internal static bool IsSystemDarkMode()
     {
         try
         {
@@ -100,8 +106,20 @@ internal sealed class Win11MenuRenderer : ToolStripRenderer
         e.Graphics.DrawRectangle(pen, 0, 0, e.ToolStrip.Width - 1, e.ToolStrip.Height - 1);
     }
 
-    /// <summary>Image-margin gutter — intentionally empty so the menu background shows through.</summary>
-    protected override void OnRenderImageMargin(ToolStripRenderEventArgs e) { }
+    /// <summary>Paint image margin the same color as the menu background — no visible gutter line.</summary>
+    protected override void OnRenderImageMargin(ToolStripRenderEventArgs e)
+    {
+        using var brush = new SolidBrush(Bg);
+        e.Graphics.FillRectangle(brush, e.AffectedBounds);
+    }
+
+    /// <summary>Draw ✓ centered in the image column for checked items.</summary>
+    protected override void OnRenderItemCheck(ToolStripItemImageRenderEventArgs e)
+    {
+        TextRenderer.DrawText(e.Graphics, "✓", e.Item.Font,
+            e.ImageRectangle, Text,
+            TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine);
+    }
 
     /// <summary>Rounded highlight on the hovered/selected item, matching Windows 11 style.</summary>
     protected override void OnRenderMenuItemBackground(ToolStripItemRenderEventArgs e)
@@ -118,22 +136,10 @@ internal sealed class Win11MenuRenderer : ToolStripRenderer
         e.Graphics.SmoothingMode = prev;
     }
 
-    /// <summary>Text color: full opacity when enabled, muted when disabled.
-    /// Items tagged "checked" get an inline "✓ " prefix.</summary>
+    /// <summary>Text color: full opacity when enabled, muted when disabled.</summary>
     protected override void OnRenderItemText(ToolStripItemTextRenderEventArgs e)
     {
         e.TextColor = e.Item.Enabled ? Text : Disabled;
-
-        if (e.Item.Tag as string == "checked")
-        {
-            var prev = e.Graphics.TextRenderingHint;
-            e.Graphics.TextRenderingHint = TextRenderingHint.AntiAlias;
-            TextRenderer.DrawText(e.Graphics, "✓  " + e.Text, e.TextFont,
-                e.TextRectangle, e.TextColor, e.TextFormat);
-            e.Graphics.TextRenderingHint = prev;
-            return;
-        }
-
         base.OnRenderItemText(e);
     }
 
