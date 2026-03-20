@@ -100,9 +100,6 @@ internal sealed class Win11MenuRenderer : ToolStripRenderer
         e.Graphics.DrawRectangle(pen, 0, 0, e.ToolStrip.Width - 1, e.ToolStrip.Height - 1);
     }
 
-    /// <summary>Suppressed — checkmark is rendered inline by <see cref="OnRenderItemText"/>.</summary>
-    protected override void OnRenderItemCheck(ToolStripItemImageRenderEventArgs e) { }
-
     /// <summary>Image-margin gutter — intentionally empty so the menu background shows through.</summary>
     protected override void OnRenderImageMargin(ToolStripRenderEventArgs e) { }
 
@@ -122,12 +119,12 @@ internal sealed class Win11MenuRenderer : ToolStripRenderer
     }
 
     /// <summary>Text color: full opacity when enabled, muted when disabled.
-    /// Checked items get an inline "✓ " prefix instead of a gutter checkmark.</summary>
+    /// Items tagged "checked" get an inline "✓ " prefix.</summary>
     protected override void OnRenderItemText(ToolStripItemTextRenderEventArgs e)
     {
         e.TextColor = e.Item.Enabled ? Text : Disabled;
 
-        if (e.Item is ToolStripMenuItem { Checked: true })
+        if (e.Item.Tag as string == "checked")
         {
             var prev = e.Graphics.TextRenderingHint;
             e.Graphics.TextRenderingHint = TextRenderingHint.AntiAlias;

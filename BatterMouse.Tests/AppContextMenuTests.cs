@@ -75,7 +75,7 @@ public class AppContextMenuTests
     }
 
     [Fact]
-    public void Menu_ThirdItem_CheckedReflectsStartupManager()
+    public void Menu_ThirdItem_TagReflectsStartupManager()
     {
         var (menu, container) = BuildMenuOnSta();
         using (container)
@@ -83,7 +83,8 @@ public class AppContextMenuTests
             using (menu)
             {
                 var startupItem = (ToolStripMenuItem)menu.Items[2];
-                Assert.Equal(StartupManager.IsStartupEnabled(), startupItem.Checked);
+                var expected = StartupManager.IsStartupEnabled() ? "checked" : null;
+                Assert.Equal(expected, startupItem.Tag as string);
             }
         }
     }

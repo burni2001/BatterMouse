@@ -140,8 +140,10 @@ internal sealed class AppContext : ApplicationContext
 
         var startupItem = new ToolStripMenuItem("Start with Windows")
         {
-            Checked = StartupManager.IsStartupEnabled(),
-            CheckOnClick = false   // state is managed manually via ToggleStartup
+            // Tag = "checked" drives the ✓ prefix via Win11MenuRenderer; Checked is never set
+            // so WinForms never renders its own checkmark glyph.
+            Tag = StartupManager.IsStartupEnabled() ? "checked" : null,
+            CheckOnClick = false
         };
         // Click handler is added by the instance method; static version doesn't add it
         menu.Items.Add(startupItem);
@@ -259,7 +261,7 @@ internal sealed class AppContext : ApplicationContext
     {
         bool current = StartupManager.IsStartupEnabled();
         StartupManager.SetStartup(!current);
-        _startupItem.Checked = !current;
+        _startupItem.Tag = !current ? "checked" : null;
     }
 
     protected override void ExitThreadCore()
