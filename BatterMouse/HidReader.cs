@@ -40,8 +40,15 @@ public class HidReader
     public const byte BatteryReportId      = 0x54;  // report ID confirmed empirically 2026-03-13
     public const int  BatteryByteOffset    = 5;    // offset of battery% within a 54-E2 report
     public const int  ChargingStatusOffset = 6;    // STATUS byte in 54-E2 report — non-zero = charging (empirical assumption; log output confirms value)
+    public const byte MouseBatterySubType    = 0xE2;  // r[1] == 0xE2 → mouse battery
+    public const byte KeyboardBatteryMinByte = 0x80;  // r[1] >= 0x80 (non-E2) → keyboard battery
 
     public event Action<int>?  BatteryLevelReceived;
+    /// <summary>
+    /// Fired when a 54-E4 (or any 54-r[1]>=0x80 non-E2) report arrives from any VID=0x3434 dongle.
+    /// Value is battery%, decoded as (r[1] &amp; 0x7F).  Runs independently of the mouse loop.
+    /// </summary>
+    public event Action<int>?  KeyboardBatteryLevelReceived;
     /// <summary>
     /// Fired whenever a 54-E2 report is received.  <c>true</c> = charging (r[6] != 0);
     /// <c>false</c> = on battery.  Raw STATUS byte is logged for empirical verification.
@@ -59,6 +66,7 @@ public class HidReader
     private bool _lastWiredState = false;
     private CancellationTokenSource? _chargingTlcCts;
     private CancellationToken _readLoopToken;
+    private CancellationTokenSource? _keyboardTlcCts;
 
     private static readonly string LogPath =
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
@@ -67,6 +75,10 @@ public class HidReader
     private static readonly string CachePath =
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
                      "BatterMouse", "battery.cache");
+
+    private static readonly string KeyboardCachePath =
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                     "BatterMouse", "keyboard_battery.cache");
 
     private static void SaveLastLevel(int level)
     {
@@ -78,6 +90,16 @@ public class HidReader
         catch { }
     }
 
+    private static void SaveLastKeyboardLevel(int level)
+    {
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(KeyboardCachePath)!);
+            File.WriteAllText(KeyboardCachePath, level.ToString());
+        }
+        catch { }
+    }
+
     /// <summary>Returns the last battery level written to disk, or null if unavailable.</summary>
     public static int? LoadLastLevel()
     {
@@ -85,6 +107,18 @@ public class HidReader
         {
             if (!File.Exists(CachePath)) return null;
             return int.TryParse(File.ReadAllText(CachePath).Trim(), out int v) && v > 0 && v <= 100
+                ? v : null;
+        }
+        catch { return null; }
+    }
+
+    /// <summary>Returns the last keyboard battery level written to disk, or null if unavailable.</summary>
+    public static int? LoadLastKeyboardLevel()
+    {
+        try
+        {
+            if (!File.Exists(KeyboardCachePath)) return null;
+            return int.TryParse(File.ReadAllText(KeyboardCachePath).Trim(), out int v) && v > 0 && v <= 100
                 ? v : null;
         }
         catch { return null; }
@@ -147,6 +181,8 @@ public class HidReader
     /// <summary>
     /// Starts a background thread that enumerates HID devices, opens the dongle,
     /// and raises BatteryLevelReceived whenever a 54-E2 battery report is received.
+    /// Also starts an independent keyboard scan loop that raises KeyboardBatteryLevelReceived
+    /// from 54-E4 reports, regardless of whether the mouse dongle is present.
     /// </summary>
     public void Start()
     {
@@ -159,6 +195,12 @@ public class HidReader
             Name = "HidReader"
         };
         _thread.Start();
+
+        new Thread(() => KeyboardScanLoop(token))
+        {
+            IsBackground = true,
+            Name = "KeyboardScan"
+        }.Start();
     }
 
     /// <summary>
@@ -167,6 +209,7 @@ public class HidReader
     public void Stop()
     {
         _cts?.Cancel();
+        _keyboardTlcCts?.Cancel();
     }
 
     private void ReadLoop(CancellationToken token)
@@ -320,6 +363,11 @@ public class HidReader
         // FF60 interfaces.  We pick the one whose USB composite ancestor also hosts a
         // Mouse TLC (mi_00, usage=0x0001/0x0002).  Falls back to the first FF60 found.
 
+        // Log all Keychron devices at startup so the K5 Max keyboard dongle PID is
+        // discoverable from hid.log without needing Device Manager.
+        foreach (var d in DeviceList.Local.GetHidDevices(VID))
+            Log($"[Enumerate] VID=0x{VID:X4} PID=0x{d.ProductID:X4} path={d.DevicePath}");
+
         foreach (var pid in new[] { PID_WIRELESS, PID_WIRED })
         {
             var all = DeviceList.Local.GetHidDevices(VID, pid).ToList();
@@ -454,6 +502,107 @@ public class HidReader
                     Name = "BatteryTLC"
                 }.Start();
             }
+        }
+    }
+
+    /// <summary>
+    /// Independent loop that watches for any VID=0x3434 device with a Battery System TLC
+    /// and fires <see cref="KeyboardBatteryLevelReceived"/> on 54-E4 reports.
+    /// Runs separately from the mouse ReadLoop so keyboard battery works even when
+    /// the mouse dongle is not connected.
+    /// </summary>
+    private void KeyboardScanLoop(CancellationToken token)
+    {
+        using var deviceChanged = new SemaphoreSlim(0, 1);
+        EventHandler<DeviceListChangedEventArgs> onChanged = (_, _) =>
+        {
+            // Restart keyboard TLC listeners on device change
+            _keyboardTlcCts?.Cancel();
+            _keyboardTlcCts?.Dispose();
+            _keyboardTlcCts = null;
+
+            if (deviceChanged.CurrentCount == 0)
+                deviceChanged.Release();
+        };
+        DeviceList.Local.Changed += onChanged;
+
+        try
+        {
+            while (!token.IsCancellationRequested)
+            {
+                _keyboardTlcCts?.Dispose();
+                _keyboardTlcCts = CancellationTokenSource.CreateLinkedTokenSource(token);
+                StartKeyboardTlcListener(_keyboardTlcCts.Token);
+
+                WaitForDeviceOrTimeout(deviceChanged, 5000, token);
+            }
+        }
+        finally
+        {
+            DeviceList.Local.Changed -= onChanged;
+            _keyboardTlcCts?.Cancel();
+            _keyboardTlcCts?.Dispose();
+            _keyboardTlcCts = null;
+        }
+    }
+
+    /// <summary>
+    /// Opens the Battery System TLC on ALL VID=0x3434 devices (any PID) and listens for
+    /// 54-E4 keyboard battery reports.  Mouse 54-E2 reports are deliberately ignored here
+    /// — they are handled exclusively by <see cref="StartBatteryTlcListener"/>.
+    /// This PID-agnostic scan automatically discovers the K5 Max keyboard dongle PID;
+    /// check hid.log for [Enumerate] lines to identify it.
+    /// </summary>
+    private void StartKeyboardTlcListener(CancellationToken token)
+    {
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var dev in DeviceList.Local.GetHidDevices(VID))
+        {
+            if (!HasUsagePage(dev, BatterySystemUsagePage)) continue;
+            if (!seen.Add(dev.DevicePath)) continue;
+
+            Log($"[KeyboardTLC] Candidate PID=0x{dev.ProductID:X4} path={dev.DevicePath}");
+
+            var capture = dev;
+            new Thread(() =>
+            {
+                if (!capture.TryOpen(out HidStream? s))
+                {
+                    Log($"[KeyboardTLC] TryOpen FAILED: {capture.DevicePath}");
+                    return;
+                }
+                using (s)
+                {
+                    s.ReadTimeout = Timeout.Infinite;
+                    Log($"[KeyboardTLC] Opened: {capture.DevicePath}");
+
+                    try
+                    {
+                        while (!token.IsCancellationRequested)
+                        {
+                            byte[] r = s.Read();
+
+                            if (r.Length >= 2 && r[0] == BatteryReportId
+                                && r[1] != MouseBatterySubType && r[1] >= KeyboardBatteryMinByte)
+                            {
+                                int batt = r[1] & 0x7F;
+                                Log($"[KeyboardTLC] Battery {batt}%  path={capture.DevicePath}");
+                                if (batt > 0 && batt <= 100)
+                                {
+                                    SaveLastKeyboardLevel(batt);
+                                    KeyboardBatteryLevelReceived?.Invoke(batt);
+                                }
+                            }
+                        }
+                    }
+                    catch (IOException) { }
+                }
+            })
+            {
+                IsBackground = true,
+                Name = "KeyboardTLC"
+            }.Start();
         }
     }
 
