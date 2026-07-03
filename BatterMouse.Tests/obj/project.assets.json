@@ -1,7 +1,7 @@
 {
-  "version": 3,
+  "version": 4,
   "targets": {
-    "net8.0-windows10.0.19041": {
+    "net8.0-windows10.0.19041.0": {
       "coverlet.collector/6.0.4": {
         "type": "package",
         "build": {
@@ -1058,7 +1058,7 @@
     }
   },
   "projectFileDependencyGroups": {
-    "net8.0-windows10.0.19041": [
+    "net8.0-windows10.0.19041.0": [
       "BatterMouse >= 1.0.0",
       "Microsoft.NET.Test.Sdk >= 17.14.1",
       "coverlet.collector >= 6.0.4",
@@ -1096,7 +1096,8 @@
         "https://api.nuget.org/v3/index.json": {}
       },
       "frameworks": {
-        "net8.0-windows10.0.19041": {
+        "net8.0-windows10.0.19041.0": {
+          "framework": "net8.0-windows10.0.19041",
           "targetAlias": "net8.0-windows10.0.19041.0",
           "projectReferences": {
             "D:\\OneDrive\\Coding Projects\\BatterMouse\\BatterMouse\\BatterMouse.csproj": {
@@ -1115,10 +1116,11 @@
         "auditLevel": "low",
         "auditMode": "direct"
       },
-      "SdkAnalysisLevel": "10.0.200"
+      "SdkAnalysisLevel": "10.0.300"
     },
     "frameworks": {
-      "net8.0-windows10.0.19041": {
+      "net8.0-windows10.0.19041.0": {
+        "framework": "net8.0-windows10.0.19041",
         "targetAlias": "net8.0-windows10.0.19041.0",
         "dependencies": {
           "Microsoft.NET.Test.Sdk": {
@@ -1152,11 +1154,11 @@
         "downloadDependencies": [
           {
             "name": "Microsoft.AspNetCore.App.Ref",
-            "version": "[8.0.26, 8.0.26]"
+            "version": "[8.0.28, 8.0.28]"
           },
           {
             "name": "Microsoft.NETCore.App.Ref",
-            "version": "[8.0.26, 8.0.26]"
+            "version": "[8.0.28, 8.0.28]"
           },
           {
             "name": "Microsoft.Windows.SDK.NET.Ref",
@@ -1164,7 +1166,7 @@
           },
           {
             "name": "Microsoft.WindowsDesktop.App.Ref",
-            "version": "[8.0.26, 8.0.26]"
+            "version": "[8.0.28, 8.0.28]"
           }
         ],
         "frameworkReferences": {
@@ -1178,7 +1180,7 @@
             "privateAssets": "none"
           }
         },
-        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.203/PortableRuntimeIdentifierGraph.json"
+        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.301/PortableRuntimeIdentifierGraph.json"
       }
     }
   }
