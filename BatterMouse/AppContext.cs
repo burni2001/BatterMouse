@@ -40,13 +40,12 @@ internal sealed class AppContext : ApplicationContext
     private bool _isCharging;
     private int  _lastLevel = -1;
 
-    // Keyboard tray icon — parallel to mouse icon, shown only when keyboard detected
-    private readonly NotifyIcon _keyboardTrayIcon;
-    private readonly BatteryMonitor _keyboardBatteryMonitor;
-    private ToolStripMenuItem _keyboardBatteryLabel = null!;
-    private Icon? _keyboardBatteryIcon;
-    private int   _lastKeyboardLevel = -1;
-
+    // NOTE: keyboard battery is intentionally not surfaced in the UI. The Keychron dongle's
+    // spontaneous keyboard battery report always decodes to a fixed 100% regardless of actual
+    // level (confirmed empirically — see hid.log history), and no working query mechanism was
+    // found (feature reports unsupported on that TLC; the wired/charging interface exposes no
+    // Battery System collection at all). HidReader still collects raw keyboard reports for future
+    // diagnosis, but AppContext deliberately does not display them until a real value is found.
 
     public AppContext()
     {
@@ -55,12 +54,10 @@ internal sealed class AppContext : ApplicationContext
 
         // BatteryMonitor wired to the real toast notification callback
         _batteryMonitor = new BatteryMonitor(ToastHelper.ShowLowBattery);
-        _keyboardBatteryMonitor = new BatteryMonitor(ToastHelper.ShowLowBatteryKeyboard);
 
         // HidReader raises BatteryLevelReceived; BatteryMonitor.OnBatteryLevel handles threshold logic
         _hidReader = new HidReader();
         _hidReader.BatteryLevelReceived += _batteryMonitor.OnBatteryLevel;
-        _hidReader.KeyboardBatteryLevelReceived += _keyboardBatteryMonitor.OnBatteryLevel;
         _hidReader.Start();
 
         // Load real tray icon from embedded resource
@@ -79,13 +76,6 @@ internal sealed class AppContext : ApplicationContext
 
         ToastHelper.Register(_trayIcon);
 
-        _keyboardTrayIcon = new NotifyIcon(_components)
-        {
-            Text    = "BatterMouse Keyboard",
-            Visible = false,   // hidden until first keyboard report received
-            ContextMenuStrip = BuildKeyboardMenu()
-        };
-
         _trayIcon.MouseDoubleClick += (_, _) => LaunchKeychronLauncher();
 
         // Restore last known battery level immediately (before first HID report arrives)
@@ -96,16 +86,6 @@ internal sealed class AppContext : ApplicationContext
             _batteryLabel.Text = $"Battery: {cached.Value}%";
             SetBatteryIcon(cached.Value);
             _trayIcon.Text = "BatterMouse";
-        }
-
-        int? cachedKb = HidReader.LoadLastKeyboardLevel();
-        if (cachedKb.HasValue)
-        {
-            _lastKeyboardLevel = cachedKb.Value;
-            _keyboardBatteryLabel.Text = $"Keyboard: {cachedKb.Value}%";
-            SetKeyboardBatteryIcon(cachedKb.Value);
-            _keyboardTrayIcon.Text = $"BatterMouse Keyboard — {cachedKb.Value}%";
-            _keyboardTrayIcon.Visible = true;
         }
 
         // Capture UI SynchronizationContext for thread-safe updates when handle not yet created
@@ -127,18 +107,6 @@ internal sealed class AppContext : ApplicationContext
                 _lastLevel = level;
                 _batteryLabel.Text = _isCharging ? $"Battery: {level}% (charging)" : $"Battery: {level}%";
                 RefreshTrayIcon();
-            });
-        };
-
-        _hidReader.KeyboardBatteryLevelReceived += level =>
-        {
-            Dispatch(() =>
-            {
-                _lastKeyboardLevel = level;
-                _keyboardBatteryLabel.Text = $"Keyboard: {level}%";
-                RefreshKeyboardTrayIcon();
-                if (!_keyboardTrayIcon.Visible)
-                    _keyboardTrayIcon.Visible = true;
             });
         };
 
@@ -226,33 +194,6 @@ internal sealed class AppContext : ApplicationContext
         _batteryIcon = newIcon;
     }
 
-    private void RefreshKeyboardTrayIcon()
-    {
-        var newIcon = CreateBatteryIcon(_lastKeyboardLevel);
-        _keyboardTrayIcon.Icon = newIcon;
-        _keyboardBatteryIcon?.Dispose();
-        _keyboardBatteryIcon = newIcon;
-        _keyboardTrayIcon.Text = $"BatterMouse Keyboard — {_lastKeyboardLevel}%";
-    }
-
-    private void SetKeyboardBatteryIcon(int level)
-    {
-        var newIcon = CreateBatteryIcon(level);
-        _keyboardTrayIcon.Icon = newIcon;
-        _keyboardBatteryIcon?.Dispose();
-        _keyboardBatteryIcon = newIcon;
-    }
-
-    private ContextMenuStrip BuildKeyboardMenu()
-    {
-        var menu = new Win11ContextMenuStrip(_components);
-        _keyboardBatteryLabel = new ToolStripMenuItem("Keyboard: --") { Enabled = false };
-        menu.Items.Add(_keyboardBatteryLabel);
-        menu.Items.Add(new ToolStripSeparator());
-        menu.Items.Add("Exit", null, (_, _) => ExitThread());
-        return menu;
-    }
-
     /// <summary>
     /// Renders a green lightning bolt icon used when the mouse is charging.
     /// </summary>
@@ -332,10 +273,8 @@ internal sealed class AppContext : ApplicationContext
     {
         _hidReader.Stop();
         _trayIcon.Visible = false;
-        _keyboardTrayIcon.Visible = false;
         ToastHelper.Cleanup();
         _batteryIcon?.Dispose();
-        _keyboardBatteryIcon?.Dispose();
         base.ExitThreadCore();
     }
 

@@ -530,6 +530,7 @@ public class HidReader
         {
             while (!token.IsCancellationRequested)
             {
+                _keyboardTlcCts?.Cancel();
                 _keyboardTlcCts?.Dispose();
                 _keyboardTlcCts = CancellationTokenSource.CreateLinkedTokenSource(token);
                 StartKeyboardTlcListener(_keyboardTlcCts.Token);
@@ -582,6 +583,11 @@ public class HidReader
                         while (!token.IsCancellationRequested)
                         {
                             byte[] r = s.Read();
+
+                            if (r.Length >= 2 && r[0] == BatteryReportId)
+                            {
+                                Log($"[KeyboardTLC] RAW {BitConverter.ToString(r)}  path={capture.DevicePath}");
+                            }
 
                             if (r.Length >= 2 && r[0] == BatteryReportId
                                 && r[1] != MouseBatterySubType && r[1] >= KeyboardBatteryMinByte)

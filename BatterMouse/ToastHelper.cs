@@ -23,14 +23,5 @@ public static class ToastHelper
             tipIcon: ToolTipIcon.Warning);
     }
 
-    public static void ShowLowBatteryKeyboard(int level)
-    {
-        _icon?.ShowBalloonTip(
-            timeout: 5000,
-            tipTitle: "BatterMouse \u2014 Keyboard Low Battery",
-            tipText: $"Keyboard battery is at {level}%. Connect USB cable to charge.",
-            tipIcon: ToolTipIcon.Warning);
-    }
-
     public static void Cleanup() { }
 }
